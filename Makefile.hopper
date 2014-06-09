@@ -1,0 +1,56 @@
+MPICXX := $(HPCP_MPICXX)
+CXXFLAGS := $(HPCP_CXXFLAGS) $(HPCP_OMPFLAGS)
+
+LEVELSROOT = /project/projectdirs/planck/modules/hopper/gnu/level_s-20130510-20140401
+
+IScalm = IScalm_hopper.a # Allows machine specific naming
+
+CMULT_INCLUDE := -I$(LEVELSROOT)/include $(shell toastconfig --cppflags)
+TODGEN_INCLUDE := $(CMULT_INCLUDE) -I$(boost_PREFIX)/include
+
+# libhealpic_cxx.a and libcxxsupport.a are explicitly referenced because of a possible conflict
+# with Healpix versions of the same file
+
+CMULT_LINK := $(shell toastconfig --mpiflibs) $(HPCP_LDFLAGS) $(HPCP_LIBS) \
+	-L$(LEVELSROOT)/lib -lfftpack -lc_utils $(LEVELSROOT)/lib/libhealpix_cxx.a $(LEVELSROOT)/lib/libcxxsupport.a -lcfitsio
+
+TODGEN_LINK := $(IScalm) $(CMULT_LINK) \
+	-L$(boost_PREFIX)/lib -lboost_system -lboost_filesystem -lboost_mpi
+
+CMULT_OBJECTS := cmult.o cmult_module.o
+TODGEN_OBJECTS := IScalm2TOD.o IScalm2TOD_module.o injector.o
+
+all : IScalm2TOD cmult $(IScalm)
+
+# cmult rules
+
+cmult_module.o: cmult_module.cc
+	$(MPICXX) $(CXXFLAGS) $(CMULT_INCLUDE) -c $<
+
+cmult.o: cmult_module.o cmult.cc
+	$(MPICXX) $(CXXFLAGS) $(CMULT_INCLUDE) -c cmult.cc
+
+cmult : $(CMULT_OBJECTS)
+	$(MPICXX) -o cmult $(CMULT_OBJECTS) $(CMULT_LINK)
+
+# IScalm2TOD rules
+
+$(IScalm) : cmult_module.o
+	ar rsv $(IScalm) cmult_module.o
+
+injector.o: injector.cpp injector.hpp
+	$(MPICXX) $(CXXFLAGS) $(TODGEN_INCLUDE) -c injector.cpp
+
+IScalm2TOD_module.o: IScalm2TOD_module.cc injector.hpp
+	$(MPICXX) $(CXXFLAGS) $(TODGEN_INCLUDE) -c $<
+
+IScalm2TOD.o: IScalm2TOD_module.o IScalm2TOD.cc
+	$(MPICXX) $(CXXFLAGS) $(TODGEN_INCLUDE) -c IScalm2TOD.cc
+
+IScalm2TOD : $(TODGEN_OBJECTS) $(IScalm)
+	$(MPICXX) -o IScalm2TOD $(TODGEN_OBJECTS) $(TODGEN_LINK)
+
+# Other
+
+clean:
+	rm -f *~ *.o
