@@ -278,9 +278,22 @@ long injector::write_data( arr<double> pntarr, long offset ) {
   }
 
   if ( nwrite == 0 ) {
+    // Perhaps TOAST added missing samples that are not present in the TOD file. Try advancing the position
+    while ( time[pos+nwrite] > pntarr[offset+nwrite*ncol_+4] - tol_ ) {
+      if ( offset+nwrite*ncol_+4 > pntarr.size()-1 ) break;
+      nwrite++;
+    }
+    if (nwrite > 0) return nwrite; // Virtual samples are not written
+  }
+
+  if ( nwrite == 0 ) {
     cerr.precision(16);
-    cerr << id_ << " : No matching timestamps"<<endl;
-    for ( long i=0; i<10; ++i ) cerr << id_ << " : " << time[pos+i] << " " << pntarr[offset+i*ncol_+4] << " " << time[pos+i] - pntarr[offset+i*ncol_+4] << endl;
+    cerr << id_ << " : No matching timestamps in " << info.path << " starting at " << pos << endl;
+    for ( long i=0; i<10; ++i ) {
+      if ( pos+i > time.size()-1 ) { cerr << "No more cached time stamps " << endl; break; }
+      if ( offset+i*ncol_+4 > pntarr.size()-1 ) { cerr << "No more convolved data " << endl; break; }
+      cerr << id_ << " : " << time[pos+i] << " " << pntarr[offset+i*ncol_+4] << " " << time[pos+i] - pntarr[offset+i*ncol_+4] << endl;
+    }
     throw runtime_error(" Unable to find a single matching sample to write");
   }
 
