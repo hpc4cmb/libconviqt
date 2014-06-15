@@ -2,7 +2,7 @@ MPICXX := $(HPCP_MPICXX)
 CXXFLAGS := $(HPCP_CXXFLAGS) $(HPCP_OMPFLAGS)
 #CXXFLAGS := -O0 -g -m64 -fPIC -DNDEBUG -std=c++11 -fopenmp
 
-LEVELSROOT = /project/projectdirs/planck/modules/edison/gnu/level_s-20130510-20140401
+LEVELSROOT = /project/projectdirs/planck/modules/edison/gnu/level_s-20140506-20140609
 PREFIX = /project/projectdirs/planck/software/keskital/edison
 
 IScalm = IScalm_edison.a # Allows machine specific naming

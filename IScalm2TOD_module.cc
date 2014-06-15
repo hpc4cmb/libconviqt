@@ -234,7 +234,7 @@ void ratiobetacalcsmallercm(long &ratiobeta, double theta, int cores, arr<double
 
 void thetaDeltaThetacm(double thetaini, int cores, int corenum, double &theta, double &deltatheta);
 
-void toastReadData ( arr < double > & pntarr, const string det_id, paramfile & par_file, bool galactic, bool apply_flags, double ratiodeltas, int cores, arr<double> &corethetaarr, int corenum, double psi_pol )
+void toastReadData ( arr < double > & pntarr, const string det_id, paramfile & par_file, bool galactic, bool apply_flags, double ratiodeltas, int cores, arr<double> &corethetaarr, int corenum, double psi_pol, string toast_distribution )
 {
   // Read run file
   string toast_run_file=par_file.find<string>("toast_run_file");
@@ -245,7 +245,16 @@ void toastReadData ( arr < double > & pntarr, const string det_id, paramfile & p
 
   // Distribute data
 
-  toast::mpi_distribution_p dist ( new toast::mpi_distribution ( conf, toast::DIST_OBS, 1 ) );
+  toast::dist_type dtype;
+  if ( toast_distribution.find("obs") != string::npos || toast_distribution.find("OBS") != string::npos ) {
+    dtype = toast::DIST_OBS;
+  } else if ( toast_distribution.find("int") != string::npos || toast_distribution.find("INT") != string::npos ) {
+    dtype = toast::DIST_INTERVAL;
+  } else {
+    throw runtime_error( string("Unknown TOAST distribution: ") + toast_distribution );
+  }
+
+  toast::mpi_distribution_p dist ( new toast::mpi_distribution ( conf, dtype, 1 ) );
 
   // Compute number of samples
 
@@ -395,7 +404,7 @@ void IScalm2TODEx (paramfile &par_file)
   t_init = (t2=MPI_Wtime()) - t1;
 
   arr<double> pntarr;
-  toastReadData ( pntarr, det_id, par_file, galactic, apply_flags, ratiodeltas, cores, corethetaarr, corenum, psi_pol );
+  toastReadData ( pntarr, det_id, par_file, galactic, apply_flags, ratiodeltas, cores, corethetaarr, corenum, psi_pol, par_file.find<string>("toast_distribution","OBSERVATION") );
 
   t_read_tod = (t1=MPI_Wtime()) - t2;
 
@@ -468,11 +477,6 @@ void IScalm2TODEx (paramfile &par_file)
 
   t_convolve = (t2=MPI_Wtime()) - t1 - t_read_alm;
 
-  // Optionally produce a binned map
-  bin_map( par_file, pntarr, corenum );
-
-  t_bin = (t1=MPI_Wtime()) - t2;
-
   // Inject the data
 
   MPI_Barrier( MPI_COMM_WORLD );
@@ -497,6 +501,18 @@ void IScalm2TODEx (paramfile &par_file)
 
   MPI_Barrier( MPI_COMM_WORLD );
 
+  // Optionally produce a binned map
+
+  t1 = MPI_Wtime();
+
+  bin_map( par_file, pntarr, corenum );
+
+  t_bin = (t2=MPI_Wtime()) - t1;
+
+  MPI_Barrier( MPI_COMM_WORLD );
+
+  // Report timing
+
   t_tot = MPI_Wtime() - t0;
 
   if ( corenum != 0 ) {
@@ -518,13 +534,13 @@ void IScalm2TODEx (paramfile &par_file)
     
     cout << endl;
     cout << "Total time:       " << t_tot << " s" << endl;
-    cout << " -       IScalm init " << t_init/cores << " s" << endl;
+    cout << " -    IScalm init " << t_init/cores << " s" << endl;
     cout << " -     TOAST read " << t_read_tod/cores << " s" << endl;
     cout << " -       alm read " << t_read_alm/cores << " s" << endl;
-    cout << " -   IScalm convolve " << t_convolve/cores << " s" << endl;
-    cout << " -        bin map " << t_bin/cores << " s" << endl;
+    cout << " -IScalm convolve " << t_convolve/cores << " s" << endl;
     cout << " -  injector init " << t_init_write/cores << " s" << endl;
     cout << " - injector write " << t_write/cores << " s" << endl;
+    cout << " -        bin map " << t_bin/cores << " s" << endl;
     cout << " -      imbalance " << t_tot - (t_init+t_read_tod+t_read_alm+t_convolve+t_bin+t_init_write+t_write)/cores << " s" << endl;
     cout << endl;
   }
