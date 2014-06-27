@@ -18,45 +18,61 @@ injector::injector ( string rootdir, string file_pattern, string det_pattern, do
   info_ = info;
   
   // Construct a list of matching files in the directory
-  // Each process examines disjoint files and the results are collected in the end
 
-  boost::filesystem::recursive_directory_iterator it = boost::filesystem::recursive_directory_iterator(rootdir_);
-  boost::filesystem::recursive_directory_iterator end; // The default iterator can be used for end checking
-
-  vector< fitsinfo > myfiles;
   regex ftest( file_pattern_ );  
-
-  if (info > 0) cout << id_ << " : Searching for files recursively " << endl;
 
   cout.precision(16);
 
-  int i = -1;
-  for ( ; it != end; ++it ) {
+  vector< string > all_files;
 
-    if ( ++i % ntask != id_ ) continue;
-    
-    //if ( !boost::filesystem::is_directory(*it) ) { // This test throws an exception on Edison
+  if ( id_ == 0 ) {
 
-    string fname = it->path().string();
+    if (info_ > 0) cout << id_ << " : Searching for files recursively " << endl;
+
+    boost::filesystem::recursive_directory_iterator it = boost::filesystem::recursive_directory_iterator(rootdir_);
+    boost::filesystem::recursive_directory_iterator end; // The default iterator can be used for end checking
+
+    int i = -1;
+    for ( ; it != end; ++it ) {
+      
+      //if ( !boost::filesystem::is_directory(*it) ) { // This test throws an exception on Edison
+
+      string fname = it->path().string();
     
-    if ( regex_match( fname, ftest ) ) {      
-      double start, stop;
-      long nrow;
-      int hdu;
-      if ( !get_startstop( fname, start, stop, nrow, hdu ) ) {
-        if ( info_ > 0 ) cout << id_ << " : Found file : " << fname << " : " << start << " - " << stop << endl;
-        myfiles.push_back( fitsinfo(fname, start, stop, nrow, hdu) );
-      }
+      if ( regex_match( fname, ftest ) ) all_files.push_back( fname );
+
+      //}
+      
     }
-    //}
-    
+
+    if (info_ > 0) cout << id_ << " : Found " << all_files.size() << " files " << endl;
   }
 
-  if (info > 0) cout << id_ << " : Found " << myfiles.size() << " files " << endl;
+  boost::mpi::communicator world;
+
+  boost::mpi::broadcast( world, all_files, 0 );
   
+  // Each process examines disjoint files and the results are collected in the end
+
+  vector< fitsinfo > myfiles;
+
+  for ( int i=0; i<all_files.size(); ++i ) {
+
+    if ( i % ntask != id_ ) continue;
+
+    double start, stop;
+    long nrow;
+    int hdu;
+    string fname = all_files[i];
+    if ( !get_startstop( fname, start, stop, nrow, hdu ) ) {
+      if ( info_ > 0 ) cout << id_ << " : Found file : " << fname << " : " << start << " - " << stop << endl;
+      myfiles.push_back( fitsinfo(fname, start, stop, nrow, hdu) );
+    }
+
+  }
+
   // Broadcast the lists
 
-  boost::mpi::communicator world;
   files.clear();
   vector< fitsinfo > recvfiles;  
   for ( int idsend=0; idsend<ntask; ++idsend ) {
