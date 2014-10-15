@@ -2,6 +2,11 @@ MPICXX := $(HPCP_MPICXX)
 CXXFLAGS := $(HPCP_CXXFLAGS) $(HPCP_OMPFLAGS)
 #CXXFLAGS := -O0 -g -m64 -fPIC -DNDEBUG -std=c++11 -fopenmp
 
+BOOST := -lboost_mpi-mt -lboost_filesystem-mt -lboost_system-mt
+ifeq "$(HPCP_DYNAMIC)" "FALSE"
+  BOOST := -lboost_mpi-mt-s -lboost_filesystem-mt-s -lboost_system-mt-s
+endif
+
 LEVELSROOT = /project/projectdirs/planck/modules/edison/gnu/level_s-20140506-20140609
 PREFIX = /project/projectdirs/planck/software/keskital/edison
 
@@ -17,7 +22,7 @@ CMULT_LINK := $(shell toastconfig --mpiflibs) $(HPCP_LDFLAGS) $(HPCP_LIBS) \
 	-L$(LEVELSROOT)/lib -lfftpack -lc_utils $(LEVELSROOT)/lib/libhealpix_cxx.a $(LEVELSROOT)/lib/libcxxsupport.a -lcfitsio
 
 TODGEN_LINK := $(IScalm) $(CMULT_LINK) \
-	-L$(boost_PREFIX)/lib -lboost_system-mt -lboost_filesystem-mt -lboost_mpi-mt
+	-L$(boost_PREFIX)/lib $(BOOST)
 
 CMULT_OBJECTS := cmult.o cmult_module.o
 TODGEN_OBJECTS := IScalm2TOD.o IScalm2TOD_module.o injector.o
