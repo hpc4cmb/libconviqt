@@ -17,7 +17,7 @@ CMULT_LINK := $(shell toastconfig --mpiflibs) $(HPCP_LDFLAGS) $(HPCP_LIBS) \
 	-L$(LEVELSROOT)/lib -lfftpack -lc_utils $(LEVELSROOT)/lib/libhealpix_cxx.a $(LEVELSROOT)/lib/libcxxsupport.a -lcfitsio
 
 TODGEN_LINK := $(IScalm) $(CMULT_LINK) \
-	-L$(boost_PREFIX)/lib -lboost_system -lboost_filesystem -lboost_mpi
+	-L$(boost_PREFIX)/lib -lboost_system-mt -lboost_filesystem-mt -lboost_mpi-mt
 
 CMULT_OBJECTS := cmult.o cmult_module.o
 TODGEN_OBJECTS := IScalm2TOD.o IScalm2TOD_module.o injector.o
