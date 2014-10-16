@@ -7,8 +7,9 @@ ifeq "$(HPCP_DYNAMIC)" "FALSE"
   BOOST := -lboost_mpi-mt-s -lboost_filesystem-mt-s -lboost_system-mt-s
 endif
 
-LEVELSROOT = /project/projectdirs/planck/modules/edison/gnu/level_s-20140506-20140609
-PREFIX = /project/projectdirs/planck/software/keskital/edison
+#LEVELSROOT = /project/projectdirs/planck/modules/edison/gnu/level_s-20140506-20140609
+LEVELSROOT = /project/projectdirs/planck/modules/edison/shared_gnu/level_s-20140506-20141014
+PREFIX = /project/projectdirs/planck/software/keskital/edison-shared
 
 IScalm = IScalm_edison.a # Allows machine specific naming
 
@@ -27,7 +28,7 @@ TODGEN_LINK := $(IScalm) $(CMULT_LINK) \
 CMULT_OBJECTS := cmult.o cmult_module.o
 TODGEN_OBJECTS := IScalm2TOD.o IScalm2TOD_module.o injector.o
 
-all : IScalm2TOD cmult $(IScalm) almread
+all : IScalm2TOD cmult $(IScalm) almread tod2tod
 
 # cmult rules
 
@@ -64,6 +65,17 @@ IScalm2TOD.o: IScalm2TOD_module.o IScalm2TOD.cc
 
 IScalm2TOD : $(TODGEN_OBJECTS) $(IScalm)
 	$(MPICXX) -o IScalm2TOD $(TODGEN_OBJECTS) $(TODGEN_LINK)
+
+# tod2tod rules
+
+tod2tod_module.o: tod2tod_module.cc injector.hpp
+	$(MPICXX) $(CXXFLAGS) $(TODGEN_INCLUDE) -c $<
+
+tod2tod.o: tod2tod_module.o tod2tod.cc
+	$(MPICXX) $(CXXFLAGS) $(TODGEN_INCLUDE) -c tod2tod.cc
+
+tod2tod : tod2tod.o tod2tod_module.o injector.o
+	$(MPICXX) -o tod2tod tod2tod.o tod2tod_module.o injector.o $(TODGEN_LINK)
 
 # Other
 
