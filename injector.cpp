@@ -1,6 +1,29 @@
 #include "injector.hpp"
 
 
+float ntohf( const float inFloat ) {
+  float retVal;
+  char *floatToConvert = ( char* ) & inFloat;
+  char *returnFloat = ( char* ) & retVal;
+  
+  // swap the bytes into a temporary buffer
+  for (int i=0; i<4; ++i) returnFloat[i] = floatToConvert[3-i];
+
+  return retVal;
+}
+
+
+double ntohd( const double inDouble ) {
+  double retVal;
+  char *doubleToConvert = ( char* ) & inDouble;
+  char *returnDouble = ( char* ) & retVal;
+  
+  // swap the bytes into a temporary buffer
+  for (int i=0; i<8; ++i) returnDouble[i] = doubleToConvert[7-i];
+
+  return retVal;
+}
+
 
 injector::injector ( string rootdir, string file_pattern, string det_pattern, double scale, bool add, int ntask, int id, int info ) {
   rootdir_ = rootdir;
@@ -63,10 +86,11 @@ injector::injector ( string rootdir, string file_pattern, string det_pattern, do
     double start, stop;
     long nrow;
     int hdu;
+    bool double_precision;
     string fname = all_files[i];
-    if ( !get_startstop( fname, start, stop, nrow, hdu ) ) {
+    if ( !get_startstop( fname, start, stop, nrow, hdu, double_precision ) ) {
       if ( info_ > 0 ) cout << id_ << " : Found file : " << fname << " : " << start << " - " << stop << endl;
-      myfiles.push_back( fitsinfo(fname, start, stop, nrow, hdu) );
+      myfiles.push_back( fitsinfo(fname, start, stop, nrow, hdu, double_precision) );
     }
 
   }
@@ -115,10 +139,10 @@ void injector::test_fits_status( int status ) {
 }
 
 
-int injector::get_startstop( string fname, double &start, double &stop, long &nrow, int &hdu ) {
+int injector::get_startstop( string fname, double &start, double &stop, long &nrow, int &hdu, bool &double_precision ) {
 
   // Examine the Planck Exchange file, fname, and retrieve start and stop times,
-  // number or rows and which hdu matches det_patter_.
+  // number or rows and which hdu matches det_pattern_.
 
   fitsfile *ffile;
   int status=0, hdutype, colnum, nhdu;
@@ -142,6 +166,16 @@ int injector::get_startstop( string fname, double &start, double &stop, long &nr
     test_fits_status( status );
 
     if ( regex_match( value, dettest ) ) {
+      int typecode;
+      long repeat, width;
+      fits_get_coltype( ffile, 1, &typecode, &repeat, &width, &status );
+      if ( typecode == TFLOAT )
+        double_precision = false;
+      else if ( typecode == TDOUBLE )
+        double_precision = true;
+      else
+        throw runtime_error( string("Unsupported fits column type: ") + to_string(typecode) );
+      test_fits_status( status );
       hdu = ihdu;
       break;
     }
@@ -322,23 +356,73 @@ long injector::write_data( arr<double> pntarr, long offset ) {
   fits_movabs_hdu( ffile, info.hdu, &hdutype, &status );
   test_fits_status( status );
 
-  vector<double> buffer(nwrite);
+  if ( false ) {
 
-  if ( add_ ) {
-    fits_read_col( ffile, TDOUBLE, 1, pos+1, (long)1, nwrite, NULL, buffer.data(), NULL, &status );
-    test_fits_status(status);
-    if ( do_scale_ ) 
-      for ( long i=0; i<nwrite; ++i ) buffer[i] += pntarr[offset+i*ncol_+3] * scale_;
-    else
-      for ( long i=0; i<nwrite; ++i ) buffer[i] += pntarr[offset+i*ncol_+3];
+    // Old code to write using high level CFITSIO routines (VERY inefficient)
+
+    vector<double> buffer(nwrite);
+    
+    if ( add_ ) {
+      fits_read_col( ffile, TDOUBLE, 1, pos+1, (long)1, nwrite, NULL, buffer.data(), NULL, &status );
+      test_fits_status(status);
+      if ( do_scale_ ) 
+        for ( long i=0; i<nwrite; ++i ) buffer[i] += pntarr[offset+i*ncol_+3] * scale_;
+      else
+        for ( long i=0; i<nwrite; ++i ) buffer[i] += pntarr[offset+i*ncol_+3];
+    } else {
+      if ( do_scale_ ) 
+        for ( long i=0; i<nwrite; ++i ) buffer[i] = pntarr[offset+i*ncol_+3] * scale_;
+      else
+        for ( long i=0; i<nwrite; ++i ) buffer[i] = pntarr[offset+i*ncol_+3];
+    }
+
+    fits_write_col( ffile, TDOUBLE, 1, pos+1, (long)1, nwrite, buffer.data(), &status );
   } else {
-    if ( do_scale_ ) 
-      for ( long i=0; i<nwrite; ++i ) buffer[i] = pntarr[offset+i*ncol_+3] * scale_;
-    else
-      for ( long i=0; i<nwrite; ++i ) buffer[i] = pntarr[offset+i*ncol_+3];
-  }
+    
+    // New code: use raw I/O and bypass buffering and data translation
 
-  fits_write_col( ffile, TDOUBLE, 1, pos+1, (long)1, nwrite, buffer.data(), &status );
+    long nbuffer;
+
+    if ( info.double_precision )
+      nbuffer = (long long) nwrite * (sizeof(double) + sizeof(char));
+    else
+      nbuffer = (long long) nwrite * (sizeof(float) + sizeof(char));
+
+    vector<unsigned char> buffer( nbuffer );
+
+    fits_read_tblbytes( ffile, pos+1, (long long)1, nbuffer, buffer.data(), &status );
+
+    test_fits_status( status );
+
+    int stride;
+    if ( info.double_precision )
+      stride = sizeof(double)/sizeof(unsigned char) + 1;
+    else
+      stride = sizeof(float)/sizeof(unsigned char) + 1;
+
+    unsigned char * pbuffer = buffer.data();
+    for ( long i=0; i<nwrite; ++i ) {
+      if ( info.double_precision ) {
+        double dtemp = pntarr[offset+i*ncol_+3];
+        if ( do_scale_ ) dtemp *= scale_;
+        if ( add_ ) dtemp += ntohd( *(double*)pbuffer );
+        if ( htonl(47) != 47 ) dtemp = ntohd(dtemp); // Convert byte order
+        memcpy(pbuffer, &dtemp, sizeof(double));
+      } else {
+        float ftemp = pntarr[offset+i*ncol_+3]; // Convert double to float
+        if ( do_scale_ ) ftemp *= scale_;
+        if ( add_ ) ftemp += ntohf( *(float*)pbuffer );
+        if ( htonl(47) != 47 ) ftemp = ntohf( ftemp ); // Convert byte order
+        memcpy(pbuffer, &ftemp, sizeof(float));
+      }
+      pbuffer += stride;
+    }
+
+    fits_write_tblbytes( ffile, pos+1, (long long)1, nbuffer, buffer.data(), &status);
+
+    test_fits_status( status );
+    
+  }
 
   fits_close_file( ffile, &status );
   test_fits_status(status);
@@ -347,12 +431,13 @@ long injector::write_data( arr<double> pntarr, long offset ) {
 }
 
 
-fitsinfo::fitsinfo( string path, double start_time, double stop_time, long nrow, int hdu ) {
+fitsinfo::fitsinfo( string path, double start_time, double stop_time, long nrow, int hdu, bool double_precision ) {
   this->path = path;
   this->start_time = start_time;
   this->stop_time = stop_time;
   this->nrow = nrow;
   this->hdu = hdu;
+  this->double_precision = double_precision;
 }
 
 
@@ -362,4 +447,5 @@ template<class Archive> void fitsinfo::serialize(Archive & ar, const unsigned in
   ar & stop_time;
   ar & nrow;
   ar & hdu;
+  ar & double_precision;
 }

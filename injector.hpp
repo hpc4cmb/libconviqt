@@ -12,6 +12,8 @@
 #include <boost/serialization/string.hpp>
 #include <boost/mpi.hpp>
 
+#include <arpa/inet.h>
+
 #include "fitsio.h"
 
 
@@ -24,13 +26,14 @@ class fitsinfo {
 public:
 
   fitsinfo() {}
-  fitsinfo( string path, double start_time, double stop_time, long nrow, int hdu );
+  fitsinfo( string path, double start_time, double stop_time, long nrow, int hdu, bool double_precision );
 
   string path;
   double start_time;
   double stop_time;
   long nrow;
   int hdu;
+  bool double_precision;
 
 private:
 
@@ -57,7 +60,7 @@ private :
   
   long write_data( arr<double> pntarr, long offset );
   
-  int get_startstop( string fname, double &start, double &stop, long &nrow, int &hdu );
+  int get_startstop( string fname, double &start, double &stop, long &nrow, int &hdu, bool &double_precision );
   
   void test_fits_status( int status );
 
