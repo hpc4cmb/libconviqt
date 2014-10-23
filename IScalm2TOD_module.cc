@@ -28,6 +28,7 @@
 #include <pointing.h>
 
 #include <boost/algorithm/string.hpp>
+#include <boost/filesystem.hpp>
 
 #include "injector.hpp"
 
@@ -550,6 +551,10 @@ int IScalm2TOD_module(int argc, const char **argv)
 {
   module_startup ("IScalm2TOD", argc, const_cast<const char **>(argv), 2,
 		  "<init object>", mpiMgr.master());
+  
+  if ( ! boost::filesystem::exists( argv[1] ) )
+    throw runtime_error( string("Parameter file does not exist: ") + string( argv[1] ) );
+       
   iohandle_current::Manager mng (argv[1]);
   paramfile par_file (mng.getParams(mpiMgr.master()));
   
