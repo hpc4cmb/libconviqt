@@ -22,19 +22,21 @@
  *  (DLR).
  */
 
-/*! \file math_utils.h
+/*! \file ls_math_utils.h
  *  Various convenience mathematical functions.
  *
  *  Copyright (C) 2002-2012 Max-Planck-Society
  *  \author Martin Reinecke
  */
 
-#ifndef PLANCK_MATH_UTILS_H
-#define PLANCK_MATH_UTILS_H
+#ifndef LEVELS_MATH_UTILS_H
+#define LEVELS_MATH_UTILS_H
 
 #include <cmath>
 #include <algorithm>
-#include "datatypes.h"
+#include "ls_datatypes.h"
+
+namespace levels {
 
 /*! \defgroup mathutilsgroup Mathematical helper functions */
 /*! \{ */
@@ -146,7 +148,7 @@ template<typename T, typename Iter, typename Comp> inline void interpol_helper
   T &frac)
   {
   using namespace std;
-  planck_assert((end-begin)>1,"sequence too small for interpolation");
+  levels_assert((end-begin)>1,"sequence too small for interpolation");
   idx = lower_bound(begin,end,val,comp)-begin;
   if (idx>0) --idx;
   idx = min(tsize(end-begin-2),idx);
@@ -175,5 +177,7 @@ template<typename T> inline bool multiequal (const T &a, const T &b, const T &c,
 template<typename T> inline bool multiequal (const T &a, const T &b, const T &c,
   const T &d, const T &e, const T &f)
   { return (a==b) && (a==c) && (a==d) && (a==e) && (a==f); }
+
+} // namespace levels
 
 #endif

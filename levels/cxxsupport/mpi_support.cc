@@ -17,7 +17,7 @@
  */
 
 /*
- * mpi_support.h, mpi_support.cc and error_handling.cc have been modified to support libconviqt:
+ * ls_mpi_support.h, mpi_support.cc and error_handling.cc have been modified to support libconviqt:
  *   - there is no longer a static instance, extern MPI_Manager mpiMgr, instead, 
  *     calling codes must instantiate their own managers and optionally supply the
  *     communicator
@@ -42,7 +42,7 @@
 #include <cstring>
 #include <cstdlib>
 #endif
-#include "mpi_support.h"
+#include "ls_mpi_support.h"
 
 //MPI_Manager mpiMgr;
 
@@ -51,7 +51,7 @@ using namespace std;
 namespace {
 
 void assert_unequal (const void *a, const void *b)
-  { planck_assert (a!=b,"input and output buffers must not be identical"); }
+  { levels_assert (a!=b,"input and output buffers must not be identical"); }
 
 } // unnamed namespace
 
@@ -76,7 +76,7 @@ MPI_Datatype ndt2mpi (NDT type)
     case NAT_FLOAT: return MPI_FLOAT;
     case NAT_DOUBLE: return MPI_DOUBLE;
     case NAT_LONGDOUBLE: return MPI_LONG_DOUBLE;
-    default: planck_fail ("Unsupported type");
+    default: levels_fail ("Unsupported type");
     }
   }
 MPI_Op op2mop (MPI_Manager::redOp op)
@@ -87,7 +87,7 @@ MPI_Op op2mop (MPI_Manager::redOp op)
     case MPI_Manager::Max : return MPI_MAX;
     case MPI_Manager::Sum : return MPI_SUM;
     case MPI_Manager::Prod: return MPI_PROD;
-    default: planck_fail ("unsupported reduction operation");
+    default: levels_fail ("unsupported reduction operation");
     }
   }
 
@@ -114,7 +114,7 @@ void MPI_Manager::all2allv_easy_prep (tsize insz, const arr<int> &numin,
   arr<int> &disin, arr<int> &numout, arr<int> &disout) const
   {
   tsize n=num_ranks_;
-  planck_assert (numin.size()==n,"array size mismatch");
+  levels_assert (numin.size()==n,"array size mismatch");
   numout.alloc(n); disin.alloc(n); disout.alloc(n);
   all2all (numin,numout);
   disin[0]=disout[0]=0;
@@ -123,7 +123,7 @@ void MPI_Manager::all2allv_easy_prep (tsize insz, const arr<int> &numin,
     disin [i]=disin [i-1]+numin [i-1];
     disout[i]=disout[i-1]+numout[i-1];
     }
-  planck_assert(insz==tsize(disin[n-1]+numin[n-1]), "incorrect array size");
+  levels_assert(insz==tsize(disin[n-1]+numin[n-1]), "incorrect array size");
   }
 
 #else
@@ -140,9 +140,9 @@ void MPI_Manager::gatherv_helper1_m (int nval_loc, arr<int> &nval,
 void MPI_Manager::all2allv_easy_prep (tsize insz, const arr<int> &numin,
   arr<int> &disin, arr<int> &numout, arr<int> &disout) const
   {
-  planck_assert (numin.size()==1,"array size mismatch");
+  levels_assert (numin.size()==1,"array size mismatch");
   numout=numin; disin.allocAndFill(1,0); disout.allocAndFill(1,0);
-  planck_assert(insz==tsize(numin[0]), "incorrect array size");
+  levels_assert(insz==tsize(numin[0]), "incorrect array size");
   }
 
 #endif
@@ -264,7 +264,7 @@ void MPI_Manager::all2allRawVoid (const void *in, void *out, NDT type,
   tsize num) const
   {
   assert_unequal(in,out);
-  planck_assert (num%num_ranks_==0,
+  levels_assert (num%num_ranks_==0,
     "array size is not divisible by number of ranks");
   MPI_Datatype tp = ndt2mpi(type);
   MPI_Alltoall (const_cast<void *>(in),num/num_ranks_,tp,out,num/num_ranks_,
@@ -285,25 +285,25 @@ void MPI_Manager::all2allvRawVoid (const void *in, const int *numin,
 #else
 
 void MPI_Manager::sendRawVoid (const void *, NDT, tsize, tsize) const
-  { planck_fail("not supported in scalar code"); }
+  { levels_fail("not supported in scalar code"); }
 void MPI_Manager::recvRawVoid (void *, NDT, tsize, tsize) const
-  { planck_fail("not supported in scalar code"); }
+  { levels_fail("not supported in scalar code"); }
 void MPI_Manager::sendrecvRawVoid (const void *sendbuf, tsize sendcnt,
   tsize dest, void *recvbuf, tsize recvcnt, tsize src, NDT type) const
   {
   assert_unequal(sendbuf,recvbuf);
-  planck_assert ((dest==0) && (src==0), "inconsistent call");
-  planck_assert (sendcnt==recvcnt, "inconsistent call");
+  levels_assert ((dest==0) && (src==0), "inconsistent call");
+  levels_assert (sendcnt==recvcnt, "inconsistent call");
   memcpy (recvbuf, sendbuf, sendcnt*ndt2size(type));
   }
 void MPI_Manager::sendrecv_replaceRawVoid (void *, NDT, tsize, tsize dest,
   tsize src) const
-  { planck_assert ((dest==0) && (src==0), "inconsistent call"); }
+  { levels_assert ((dest==0) && (src==0), "inconsistent call"); }
 
 void MPI_Manager::gatherRawVoid (const void *in, tsize num, void *out, NDT type,
   int root) const
   {
-  planck_assert(root==0, "invalid root task");
+  levels_assert(root==0, "invalid root task");
   assert_unequal(in,out);
   memcpy (out, in, num*ndt2size(type));
   }
@@ -335,7 +335,7 @@ void MPI_Manager::all2allvRawVoid (const void *in, const int *numin,
   const
   {
   assert_unequal(in,out); 
-  planck_assert (numin[0]==numout[0],"message size mismatch");
+  levels_assert (numin[0]==numout[0],"message size mismatch");
   const char *in2 = static_cast<const char *>(in);
   char *out2 = static_cast<char *>(out);
   tsize st=ndt2size(type);

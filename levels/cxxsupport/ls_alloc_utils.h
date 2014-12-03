@@ -29,11 +29,13 @@
  *  \author Martin Reinecke
  */
 
-#ifndef PLANCK_ALLOC_UTILS_H
-#define PLANCK_ALLOC_UTILS_H
+#ifndef LEVELS_ALLOC_UTILS_H
+#define LEVELS_ALLOC_UTILS_H
 
 #include <cstdlib>
-#include "datatypes.h"
+#include "ls_datatypes.h"
+
+namespace levels {
 
 template <typename T> class normalAlloc__
   {
@@ -49,16 +51,16 @@ template <typename T, int align> class alignAlloc__
       {
       using namespace std;
       if (sz==0) return 0;
-      planck_assert((align&(align-1))==0,"alignment must be power of 2");
+      levels_assert((align&(align-1))==0,"alignment must be power of 2");
       void *res;
 /* OSX up to version 10.5 does not define posix_memalign(), but fortunately
    the normal malloc() returns 16 byte aligned storage */
 #ifdef __APPLE__
-      planck_assert(align<=16, "bad alignment requested");
+      levels_assert(align<=16, "bad alignment requested");
       res=malloc(sz*sizeof(T));
-      planck_assert(res!=0,"error in malloc()");
+      levels_assert(res!=0,"error in malloc()");
 #else
-      planck_assert(posix_memalign(&res,align,sz*sizeof(T))==0,
+      levels_assert(posix_memalign(&res,align,sz*sizeof(T))==0,
         "error in posix_memalign()");
 #endif
       return static_cast<T *>(res);
@@ -69,5 +71,7 @@ template <typename T, int align> class alignAlloc__
       free(ptr);
       }
   };
+
+} // namespace levels
 
 #endif

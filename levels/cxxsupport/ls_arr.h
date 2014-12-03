@@ -22,25 +22,27 @@
  *  (DLR).
  */
 
-/*! \file arr.h
+/*! \file ls_arr.h
  *  Various high-performance array classes used by the Planck LevelS package.
  *
  *  Copyright (C) 2002-2012 Max-Planck-Society
  *  \author Martin Reinecke
  */
 
-#ifndef PLANCK_ARR_H
-#define PLANCK_ARR_H
+#ifndef LEVELS_ARR_H
+#define LEVELS_ARR_H
 
 #include <algorithm>
 #include <vector>
 #include <cstdlib>
-#include "alloc_utils.h"
-#include "datatypes.h"
-#include "math_utils.h"
+#include "ls_alloc_utils.h"
+#include "ls_datatypes.h"
+#include "ls_math_utils.h"
 
 /*! \defgroup arraygroup Array classes */
 /*! \{ */
+
+namespace levels {
 
 /*! View of a 1D array */
 template <typename T> class arr_ref
@@ -118,7 +120,7 @@ template <typename T> class arr_ref
         respectively. Throws an exception if the array is zero-sized. */
     void minmax (T &minv, T &maxv) const
       {
-      planck_assert(s>0,"trying to find min and max of a zero-sized array");
+      levels_assert(s>0,"trying to find min and max of a zero-sized array");
       minv=maxv=d[0];
       for (tsize m=1; m<s; ++m)
         {
@@ -141,7 +143,7 @@ template <typename T> class arr_ref
       {
       for (tsize m=0; m<s; ++m)
         if (d[m]==val) return m;
-      planck_fail ("entry not found in array");
+      levels_fail ("entry not found in array");
       }
 
     /*! Returns \a true if the array has the same size as \a other and all
@@ -439,7 +441,7 @@ template <typename T, typename storageManager> class arr2T
         respectively. Throws an exception if the array is zero-sized. */
     void minmax (T &minv, T &maxv) const
       {
-      planck_assert(s1*s2>0,
+      levels_assert(s1*s2>0,
         "trying to find min and max of a zero-sized array");
       minv=maxv=d[0];
       for (tsize m=1; m<s1*s2; ++m)
@@ -648,6 +650,8 @@ template <typename T> class arr3
     template<typename T2> bool conformable (const arr3<T2> &other) const
       { return (other.size1()==s1)&&(other.size2()==s2)&&(other.size3()==s3); }
   };
+
+} // namespace levels
 
 /*! \} */
 

@@ -1,6 +1,6 @@
 #include "conviqt.hpp"
 
-void sift_down_DL( arr<double> &ra, arr<long> &brr, const int l, const int r ) //FROM P-340 OF NR
+void sift_down_DL( levels::arr<double> &ra, levels::arr<long> &brr, const int l, const int r ) //FROM P-340 OF NR
 {
   int j, jold;
   double a;
@@ -26,7 +26,7 @@ void sift_down_DL( arr<double> &ra, arr<long> &brr, const int l, const int r ) /
 }
 
   
-void hpsort_DL( arr<double> &ra, arr<long> &brr ) // FROM P-340 OF NR
+void hpsort_DL( levels::arr<double> &ra, levels::arr<long> &brr ) // FROM P-340 OF NR
 {
   int i;
   int n=ra.size();
@@ -42,7 +42,7 @@ void hpsort_DL( arr<double> &ra, arr<long> &brr ) // FROM P-340 OF NR
     }
 }
 
-void sift_down_arrTheta( arr<double> &ra, const int l, const int r ) // FROM P-340 OF NR
+void sift_down_arrTheta( levels::arr<double> &ra, const int l, const int r ) // FROM P-340 OF NR
 {
   int j, jold;
   double a,c,d,f;
@@ -77,7 +77,7 @@ void sift_down_arrTheta( arr<double> &ra, const int l, const int r ) // FROM P-3
 }
 
 
-void hpsort_arrTheta( arr<double> &ra ) // FROM P-340 OF NR
+void hpsort_arrTheta( levels::arr<double> &ra ) // FROM P-340 OF NR
 {
   int i;
   int n = ra.size()/5;
@@ -94,7 +94,7 @@ void hpsort_arrTheta( arr<double> &ra ) // FROM P-340 OF NR
     }
 }
 
-void sift_down_arrTOD( arr<double> &ra, const int l, const int r ) // FROM P-340 OF NR
+void sift_down_arrTOD( levels::arr<double> &ra, const int l, const int r ) // FROM P-340 OF NR
 {
   int j, jold;
   double a, c, d, f;
@@ -126,7 +126,7 @@ void sift_down_arrTOD( arr<double> &ra, const int l, const int r ) // FROM P-340
 }
 
 
-void hpsort_arrTOD( arr<double> &ra ) // FROM P-340 OF NR
+void hpsort_arrTOD( levels::arr<double> &ra ) // FROM P-340 OF NR
 {
   int i;
   int n=ra.size()/5;
@@ -146,7 +146,7 @@ void hpsort_arrTOD( arr<double> &ra ) // FROM P-340 OF NR
 }
 
 
-void sift_down_arrTime( arr<double> &ra, const int l, const int r ) // FROM P-340 OF NR
+void sift_down_arrTime( levels::arr<double> &ra, const int l, const int r ) // FROM P-340 OF NR
 {
   int j, jold;
   double a, c, d, f;
@@ -178,7 +178,7 @@ void sift_down_arrTime( arr<double> &ra, const int l, const int r ) // FROM P-34
 }
 
   
-void hpsort_arrTime( arr<double> &ra ) // FROM P-340 OF NR
+void hpsort_arrTime( levels::arr<double> &ra ) // FROM P-340 OF NR
 {
   int i;
   int n = ra.size()/5;
@@ -196,7 +196,7 @@ void hpsort_arrTime( arr<double> &ra ) // FROM P-340 OF NR
 }
 
 
-void sift_down_DDcm( arr<double> &ra, arr<double> &brr, const int l, const int r ) // FROM P-340 OF NR
+void sift_down_DDcm( levels::arr<double> &ra, levels::arr<double> &brr, const int l, const int r ) // FROM P-340 OF NR
 {
   int j, jold;
   double a;
@@ -219,7 +219,7 @@ void sift_down_DDcm( arr<double> &ra, arr<double> &brr, const int l, const int r
 }
 
 
-void hpsort_DDcm( arr<double> &ra, arr<double> &brr ) //FROM P-340 OF NR
+void hpsort_DDcm( levels::arr<double> &ra, levels::arr<double> &brr ) //FROM P-340 OF NR
 {
   int i;
   int n = ra.size();

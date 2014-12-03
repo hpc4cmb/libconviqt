@@ -31,12 +31,14 @@
  *  \author Martin Reinecke
  */
 
-#ifndef PLANCK_DATATYPES_H
-#define PLANCK_DATATYPES_H
+#ifndef LEVELS_DATATYPES_H
+#define LEVELS_DATATYPES_H
 
 #include <string>
 #include <cstddef>
-#include "error_handling.h"
+#include "ls_error_handling.h"
+
+namespace levels {
 
 // Template magic to select the proper data types. These templates
 // should not be used outside this file.
@@ -98,74 +100,74 @@ typedef std::ptrdiff_t tdiff;
 
 /*! mapping of Planck data types to integer constants */
 enum PDT {
-       PLANCK_INT8    =  0,
-       PLANCK_UINT8   =  1,
-       PLANCK_INT16   =  2,
-       PLANCK_UINT16  =  3,
-       PLANCK_INT32   =  4,
-       PLANCK_UINT32  =  5,
-       PLANCK_INT64   =  6,
-       PLANCK_UINT64  =  7,
-       PLANCK_FLOAT32 =  8,
-       PLANCK_FLOAT64 =  9,
-       PLANCK_BOOL    = 10,
-       PLANCK_STRING  = 11,
-       PLANCK_INVALID = -1 };
+       LEVELS_INT8    =  0,
+       LEVELS_UINT8   =  1,
+       LEVELS_INT16   =  2,
+       LEVELS_UINT16  =  3,
+       LEVELS_INT32   =  4,
+       LEVELS_UINT32  =  5,
+       LEVELS_INT64   =  6,
+       LEVELS_UINT64  =  7,
+       LEVELS_FLOAT32 =  8,
+       LEVELS_FLOAT64 =  9,
+       LEVELS_BOOL    = 10,
+       LEVELS_STRING  = 11,
+       LEVELS_INVALID = -1 };
 
 /*! Returns the \a PDT constant associated with \a T. */
 template<typename T> inline PDT planckType()
-  { planck_fail(T::UNSUPPORTED_DATA_TYPE); }
-template<> inline PDT planckType<int8>       () { return PLANCK_INT8;   }
-template<> inline PDT planckType<uint8>      () { return PLANCK_UINT8;  }
-template<> inline PDT planckType<int16>      () { return PLANCK_INT16;  }
-template<> inline PDT planckType<uint16>     () { return PLANCK_UINT16; }
-template<> inline PDT planckType<int32>      () { return PLANCK_INT32;  }
-template<> inline PDT planckType<uint32>     () { return PLANCK_UINT32; }
-template<> inline PDT planckType<int64>      () { return PLANCK_INT64;  }
-template<> inline PDT planckType<uint64>     () { return PLANCK_UINT64; }
-template<> inline PDT planckType<float32>    () { return PLANCK_FLOAT32;}
-template<> inline PDT planckType<float64>    () { return PLANCK_FLOAT64;}
-template<> inline PDT planckType<bool>       () { return PLANCK_BOOL;   }
-template<> inline PDT planckType<std::string>() { return PLANCK_STRING; }
+  { levels_fail(T::UNSUPPORTED_DATA_TYPE); }
+template<> inline PDT planckType<int8>       () { return LEVELS_INT8;   }
+template<> inline PDT planckType<uint8>      () { return LEVELS_UINT8;  }
+template<> inline PDT planckType<int16>      () { return LEVELS_INT16;  }
+template<> inline PDT planckType<uint16>     () { return LEVELS_UINT16; }
+template<> inline PDT planckType<int32>      () { return LEVELS_INT32;  }
+template<> inline PDT planckType<uint32>     () { return LEVELS_UINT32; }
+template<> inline PDT planckType<int64>      () { return LEVELS_INT64;  }
+template<> inline PDT planckType<uint64>     () { return LEVELS_UINT64; }
+template<> inline PDT planckType<float32>    () { return LEVELS_FLOAT32;}
+template<> inline PDT planckType<float64>    () { return LEVELS_FLOAT64;}
+template<> inline PDT planckType<bool>       () { return LEVELS_BOOL;   }
+template<> inline PDT planckType<std::string>() { return LEVELS_STRING; }
 
 /*! Returns the size (in bytes) of the Planck data type \a type. */
 inline int type2size (PDT type)
   {
   switch (type)
     {
-    case PLANCK_INT8   :
-    case PLANCK_UINT8  :
-    case PLANCK_BOOL   :
-    case PLANCK_STRING : return 1;
-    case PLANCK_INT16  :
-    case PLANCK_UINT16 : return 2;
-    case PLANCK_INT32  :
-    case PLANCK_UINT32 :
-    case PLANCK_FLOAT32: return 4;
-    case PLANCK_INT64  :
-    case PLANCK_UINT64 :
-    case PLANCK_FLOAT64: return 8;
+    case LEVELS_INT8   :
+    case LEVELS_UINT8  :
+    case LEVELS_BOOL   :
+    case LEVELS_STRING : return 1;
+    case LEVELS_INT16  :
+    case LEVELS_UINT16 : return 2;
+    case LEVELS_INT32  :
+    case LEVELS_UINT32 :
+    case LEVELS_FLOAT32: return 4;
+    case LEVELS_INT64  :
+    case LEVELS_UINT64 :
+    case LEVELS_FLOAT64: return 8;
     default:
-      planck_fail ("type2size: unsupported data type");
+      levels_fail ("type2size: unsupported data type");
     }
   }
 
 /*! Converts the string \a type to a \a PDT. */
 inline PDT string2type(const std::string &type)
   {
-  if (type=="FLOAT64") return PLANCK_FLOAT64;
-  if (type=="FLOAT32") return PLANCK_FLOAT32;
-  if (type=="INT8")    return PLANCK_INT8;
-  if (type=="UINT8")   return PLANCK_UINT8;
-  if (type=="INT16")   return PLANCK_INT16;
-  if (type=="UINT16")  return PLANCK_UINT16;
-  if (type=="INT32")   return PLANCK_INT32;
-  if (type=="UINT32")  return PLANCK_UINT32;
-  if (type=="INT64")   return PLANCK_INT64;
-  if (type=="UINT64")  return PLANCK_UINT64;
-  if (type=="BOOL")    return PLANCK_BOOL;
-  if (type=="STRING")  return PLANCK_STRING;
-  planck_fail ("string2type: unknown data type '"+type+"'");
+  if (type=="FLOAT64") return LEVELS_FLOAT64;
+  if (type=="FLOAT32") return LEVELS_FLOAT32;
+  if (type=="INT8")    return LEVELS_INT8;
+  if (type=="UINT8")   return LEVELS_UINT8;
+  if (type=="INT16")   return LEVELS_INT16;
+  if (type=="UINT16")  return LEVELS_UINT16;
+  if (type=="INT32")   return LEVELS_INT32;
+  if (type=="UINT32")  return LEVELS_UINT32;
+  if (type=="INT64")   return LEVELS_INT64;
+  if (type=="UINT64")  return LEVELS_UINT64;
+  if (type=="BOOL")    return LEVELS_BOOL;
+  if (type=="STRING")  return LEVELS_STRING;
+  levels_fail ("string2type: unknown data type '"+type+"'");
   }
 
 /*! Converts the Planck data type \a type to a C string. */
@@ -173,26 +175,26 @@ inline const char *type2string (PDT type)
   {
   switch (type)
     {
-    case PLANCK_INT8   : return "INT8";
-    case PLANCK_UINT8  : return "UINT8";
-    case PLANCK_INT16  : return "INT16";
-    case PLANCK_UINT16 : return "UINT16";
-    case PLANCK_INT32  : return "INT32";
-    case PLANCK_UINT32 : return "UINT32";
-    case PLANCK_INT64  : return "INT64";
-    case PLANCK_UINT64 : return "UINT64";
-    case PLANCK_FLOAT32: return "FLOAT32";
-    case PLANCK_FLOAT64: return "FLOAT64";
-    case PLANCK_BOOL   : return "BOOL";
-    case PLANCK_STRING : return "STRING";
+    case LEVELS_INT8   : return "INT8";
+    case LEVELS_UINT8  : return "UINT8";
+    case LEVELS_INT16  : return "INT16";
+    case LEVELS_UINT16 : return "UINT16";
+    case LEVELS_INT32  : return "INT32";
+    case LEVELS_UINT32 : return "UINT32";
+    case LEVELS_INT64  : return "INT64";
+    case LEVELS_UINT64 : return "UINT64";
+    case LEVELS_FLOAT32: return "FLOAT32";
+    case LEVELS_FLOAT64: return "FLOAT64";
+    case LEVELS_BOOL   : return "BOOL";
+    case LEVELS_STRING : return "STRING";
     default:
-      planck_fail ("type2string: unsupported data type");
+      levels_fail ("type2string: unsupported data type");
     }
   }
 
 /*! Returns a C string describing the data type \a T. */
 template<typename T> inline const char *type2typename ()
-  { planck_fail(T::UNSUPPORTED_DATA_TYPE); }
+  { levels_fail(T::UNSUPPORTED_DATA_TYPE); }
 template<> inline const char *type2typename<signed char> ()
   { return "signed char"; }
 template<> inline const char *type2typename<unsigned char> ()
@@ -245,7 +247,7 @@ enum NDT {
 
 /*! Returns the \a NDT constant associated with \a T. */
 template<typename T> inline NDT nativeType()
-  { planck_fail(T::UNSUPPORTED_DATA_TYPE); }
+  { levels_fail(T::UNSUPPORTED_DATA_TYPE); }
 template<> inline NDT nativeType<char>              () { return NAT_CHAR;      }
 template<> inline NDT nativeType<signed char>       () { return NAT_SCHAR;     }
 template<> inline NDT nativeType<unsigned char>     () { return NAT_UCHAR;     }
@@ -284,8 +286,10 @@ inline int ndt2size (NDT type)
     case NAT_LONGDOUBLE: return sizeof(long double);
     case NAT_BOOL      : return sizeof(bool);
     default:
-      planck_fail ("ndt2size: unsupported data type");
+      levels_fail ("ndt2size: unsupported data type");
     }
   }
+
+} // namespace levels
 
 #endif

@@ -17,7 +17,7 @@
  */
 
 /*
- * mpi_support.h, mpi_support.cc and error_handling.cc have been modified to support libconviqt:
+ * ls_mpi_support.h, mpi_support.cc and error_handling.cc have been modified to support libconviqt:
  *   - there is no longer a static instance, extern MPI_Manager mpiMgr, instead, 
  *     calling codes must instantiate their own managers and optionally supply the
  *     communicator
@@ -37,18 +37,20 @@
  *  Author: Martin Reinecke
  */
 
-#include "error_handling.h"
-#include "mpi_support.h"
+#include "ls_error_handling.h"
+#include "ls_mpi_support.h"
 
 using namespace std;
 
-PlanckError::PlanckError(const string &message) : msg (message) {}
-PlanckError::PlanckError(const char *message) : msg (message) {}
+namespace levels {
+
+LEVELSError::LEVELSError(const string &message) : msg (message) {}
+LEVELSError::LEVELSError(const char *message) : msg (message) {}
 
 //virtual
-PlanckError::~PlanckError() {}
+LEVELSError::~LEVELSError() {}
 
-void planck_failure__(const char *file, int line, const char *func,
+void levels_failure__(const char *file, int line, const char *func,
   const string &msg)
   {
   cerr << "Error encountered at " << file << ", line " << line << endl;
@@ -57,12 +59,14 @@ void planck_failure__(const char *file, int line, const char *func,
   cerr << endl;
   }
 
-void planck_failure__(const char *file, int line, const char *func,
+void levels_failure__(const char *file, int line, const char *func,
   const char *msg)
-  { planck_failure__ (file,line,func,string(msg)); }
+  { levels_failure__ (file,line,func,string(msg)); }
 
 void killjob__()
   {
     MPI_Manager mpiMgr;
     mpiMgr.abort();
   }
+
+} // namespace levels

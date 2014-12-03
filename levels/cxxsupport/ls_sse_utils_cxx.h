@@ -29,15 +29,21 @@
  *  \author Martin Reinecke
  */
 
-#ifndef PLANCK_SSE_UTILS_CXX_H
-#define PLANCK_SSE_UTILS_CXX_H
+#ifndef LEVELS_SSE_UTILS_CXX_H
+#define LEVELS_SSE_UTILS_CXX_H
+
+namespace levels {
 
 template<typename T, int sz> class svec;
+
+} // namespace levels
 
 #if (defined(__SSE2__))
 
 #include <xmmintrin.h>
 #include <emmintrin.h>
+
+namespace levels {
 
 template<> class svec<int, 4>
   {
@@ -384,5 +390,7 @@ template<> inline V2df vcast (const V4si &a)
   { return V2df (_mm_castsi128_pd(a.v)); }
 
 #endif
+
+} // namespace levels
 
 #endif

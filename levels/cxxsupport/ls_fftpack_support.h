@@ -31,8 +31,10 @@
 #define PLANCK_FFTPACK_SUPPORT_H
 
 #include "ls_fft.h"
-#include "arr.h"
+#include "ls_arr.h"
 #include "xcomplex.h"
+
+namespace levels {
 
 class cfft
   {
@@ -131,5 +133,7 @@ class rfft
     void backward_c (arr<xcomplex<double> >&data)
       { real_plan_backward_c(plan,&(data[0].re)); }
   };
+
+} // namespace levels
 
 #endif

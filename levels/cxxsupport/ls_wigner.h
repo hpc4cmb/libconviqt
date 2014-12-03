@@ -22,20 +22,22 @@
  *  (DLR).
  */
 
-/*! \file wigner.h
+/*! \file ls_wigner.h
  *  Several C++ classes for calculating Wigner matrices
  *
  *  Copyright (C) 2009-2011 Max-Planck-Society
  *  \author Martin Reinecke and others (see individual classes)
  */
 
-#ifndef PLANCK_WIGNER_H
-#define PLANCK_WIGNER_H
+#ifndef LEVELS_WIGNER_H
+#define LEVELS_WIGNER_H
 
 #include <cmath>
-#include "arr.h"
+#include "ls_arr.h"
 
-#include "sse_utils_cxx.h"
+#include "ls_sse_utils_cxx.h"
+
+namespace levels {
 
 /*! Class for calculation of the Wigner matrix at pi/2, using Risbo recursion
     in a way that cannot easily be parallelised, but is fairly efficient on
@@ -192,5 +194,7 @@ class wigner_estimator
     void prepare_m (int m1_, int m2_);
     bool canSkip (double theta) const;
   };
+
+} // namespace levels
 
 #endif

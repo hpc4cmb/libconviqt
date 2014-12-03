@@ -29,10 +29,12 @@
  *  \author Martin Reinecke and others (see individual classes)
  */
 
-#include "wigner.h"
+#include "ls_wigner.h"
 #include "lsconstants.h"
 
 using namespace std;
+
+namespace levels {
 
 void wigner_d_halfpi_risbo_scalar::do_line0 (double *l1, int j)
   {
@@ -54,8 +56,8 @@ void wigner_d_halfpi_risbo_scalar::do_line (const double *l1, double *l2,
   }
 
 wigner_d_halfpi_risbo_scalar::wigner_d_halfpi_risbo_scalar(int lmax)
-  : pq(.5*sqrt(2.)), sqt(2*lmax+1), d(lmax+2,lmax+2), n(-1)
-  { for (tsize m=0; m<sqt.size(); ++m) sqt[m] = sqrt(double(m)); }
+  : pq(.5*std::sqrt(2.)), sqt(2*lmax+1), d(lmax+2,lmax+2), n(-1)
+  { for (tsize m=0; m<sqt.size(); ++m) sqt[m] = std::sqrt(double(m)); }
 
 const arr2<double> &wigner_d_halfpi_risbo_scalar::recurse ()
   {
@@ -115,7 +117,7 @@ void wigner_d_risbo_scalar::do_line (const double *l1, double *l2, int j, int k)
 wigner_d_risbo_scalar::wigner_d_risbo_scalar(int lmax, double ang)
   : p(sin(ang/2)), q(cos(ang/2)), sqt(2*lmax+1),
     d(lmax+1,2*lmax+1), n(-1)
-  { for (tsize m=0; m<sqt.size(); ++m) sqt[m] = sqrt(double(m)); }
+  { for (tsize m=0; m<sqt.size(); ++m) sqt[m] = std::sqrt(double(m)); }
 
 const arr2<double> &wigner_d_risbo_scalar::recurse ()
   {
@@ -150,9 +152,9 @@ const arr2<double> &wigner_d_risbo_scalar::recurse ()
   }
 
 wigner_d_halfpi_risbo_openmp::wigner_d_halfpi_risbo_openmp(int lmax)
-  : pq(.5*sqrt(2.)), sqt(2*lmax+1), d(lmax+2,lmax+2),
+  : pq(.5*std::sqrt(2.)), sqt(2*lmax+1), d(lmax+2,lmax+2),
     dd(lmax+2,lmax+2), n(-1)
-  { for (tsize m=0; m<sqt.size(); ++m) sqt[m] = sqrt(double(m)); }
+  { for (tsize m=0; m<sqt.size(); ++m) sqt[m] = std::sqrt(double(m)); }
 
 const arr2<double> &wigner_d_halfpi_risbo_openmp::recurse ()
   {
@@ -212,7 +214,7 @@ const arr2<double> &wigner_d_halfpi_risbo_openmp::recurse ()
 wigner_d_risbo_openmp::wigner_d_risbo_openmp(int lmax, double ang)
   : p(sin(ang/2)), q(cos(ang/2)), sqt(2*lmax+1),
     d(lmax+1,2*lmax+1), dd(lmax+1,2*lmax+1), n(-1)
-  { for (tsize m=0; m<sqt.size(); ++m) sqt[m] = sqrt(double(m)); }
+  { for (tsize m=0; m<sqt.size(); ++m) sqt[m] = std::sqrt(double(m)); }
 
 const arr2<double> &wigner_d_risbo_openmp::recurse ()
   {
@@ -273,14 +275,14 @@ wignergen_scalar::wignergen_scalar (int lmax_, const arr<double> &thetas,
     mlo(-1234567890), mhi(-1234567890),
     fx(lmax+2), result(lmax+1)
   {
-  planck_assert(lmax>0,"lmax too small");
+  levels_assert(lmax>0,"lmax too small");
   logsum[0] = 0.;
   for (tsize m=1; m<logsum.size(); ++m)
     logsum[m] = logsum[m-1]+log(static_cast<long double>(m));
   for (tsize lm=0; lm<flm1.size(); ++lm)
     {
-    flm1[lm] = sqrt(1./(lm+1.));
-    flm2[lm] = sqrt(lm/(lm+1.));
+    flm1[lm] = std::sqrt(1./(lm+1.));
+    flm2[lm] = std::sqrt(lm/(lm+1.));
     }
   for (tsize i=0; i<cf.size(); ++i)
     cf[i] = ldexp(1.,(int(i)+minscale)*large_exponent2);
@@ -293,7 +295,7 @@ wignergen_scalar::wignergen_scalar (int lmax_, const arr<double> &thetas,
     double theta=fmodulo(thetas[i],twopi);
     if (theta>pi) theta-=twopi;
     thetaflip[i]=(theta<0);
-    theta=abs(theta); // now theta is in (0; pi)
+    theta=std::abs(theta); // now theta is in (0; pi)
     // tiny adjustments to make sure cos and sin (theta/2) are positive
     if (theta==0.) theta=1e-16;
     if (abs_approx(theta,pi,1e-15)) theta=pi-1e-15;
@@ -312,13 +314,13 @@ void wignergen_scalar::prepare (int m1_, int m2_)
   {
   if ((m1_==m1) && (m2_==m2)) return;
 
-  int mlo_=abs(m1_), mhi_=abs(m2_);
+  int mlo_=std::abs(m1_), mhi_=std::abs(m2_);
   if (mhi_<mlo_) swap(mhi_,mlo_);
   bool ms_similar = ((mhi==mhi_) && (mlo==mlo_));
   bool flip_m_sign = ((m1*m2)!=(m1_*m2_));
 
   m1=m1_; m2=m2_;
-  mlo=am1=abs(m1); mhi=am2=abs(m2);
+  mlo=am1=std::abs(m1); mhi=am2=std::abs(m2);
   if (mhi<mlo) swap(mhi,mlo);
 
   if (ms_similar)
@@ -384,7 +386,7 @@ void wignergen_scalar::calc (int nth, int &firstl, arr<double> &resx) const
     if (++l>lmax) break;
     rec2 = (cth - fy[l][1])*fy[l][0]*rec1 - fy[l][2]*rec2;
 
-    while (abs(rec2)>fbig)
+    while (std::abs(rec2)>fbig)
       {
       rec1 *= fsmall;
       rec2 *= fsmall;
@@ -398,12 +400,12 @@ void wignergen_scalar::calc (int nth, int &firstl, arr<double> &resx) const
 
   for (;l<lmax-1;l+=2) // iterate until we cross the eps threshold
     {
-    if (abs(rec2)>eps) break;
+    if (std::abs(rec2)>eps) break;
     rec1 = (cth - fy[l+1][1])*fy[l+1][0]*rec2 - fy[l+1][2]*rec1;
-    if (abs(rec1)>eps) { swap(rec1,rec2); ++l; break; }
+    if (std::abs(rec1)>eps) { swap(rec1,rec2); ++l; break; }
     rec2 = (cth - fy[l+2][1])*fy[l+2][0]*rec1 - fy[l+2][2]*rec2;
     }
-  if ((abs(rec2)<=eps) && (++l<=lmax))
+  if ((std::abs(rec2)<=eps) && (++l<=lmax))
     {
     rec1 = (cth - fy[l][1])*fy[l][0]*rec2 - fy[l][2]*rec1;
     swap (rec1,rec2);
@@ -436,12 +438,12 @@ void wignergen_scalar::calc (int nth, int &firstl, arr<double> &resx) const
     double rec1a, rec1b, rec2a, rec2b, cfa, cfb; \
     rec1.writeTo(rec1a,rec1b); rec2.writeTo(rec2a,rec2b); \
     corfac.writeTo(cfa,cfb); \
-    while (abs(rec2a)>fbig) \
+    while (std::abs(rec2a)>fbig) \
       { \
       rec1a*=fsmall; rec2a*=fsmall; ++scale1; \
       cfa = (scale1<0) ? 0. : cf[scale1]; \
       } \
-    while (abs(rec2b)>fbig) \
+    while (std::abs(rec2b)>fbig) \
       { \
       rec1b*=fsmall; rec2b*=fsmall; ++scale2; \
       cfb = (scale2<0) ? 0. : cf[scale2]; \
@@ -593,18 +595,20 @@ wigner_estimator::wigner_estimator (int lmax_, double epsPow_)
 
 void wigner_estimator::prepare_m (int m1_, int m2_)
   {
-  m1=abs(m1_); m2=abs(m2_);
-  mbig=max(m1,m2);
+  m1=std::abs(m1_); m2=std::abs(m2_);
+  mbig=std::max(m1,m2);
   double cos1=m1*xlmax, cos2=m2*xlmax;
-  double s1s2=sqrt((1.-cos1*cos1)*(1.-cos2*cos2));
+  double s1s2=std::sqrt((1.-cos1*cos1)*(1.-cos2*cos2));
   cosm1m2=cos1*cos2+s1s2;
   }
 
 bool wigner_estimator::canSkip (double theta) const
   {
   if (mbig==lmax) return false; // don't have a good criterion for this case
-  double delta = m1*m1 + m2*m2 - abs(2.*m1*m2*cos(theta));
+  double delta = m1*m1 + m2*m2 - std::abs(2.*m1*m2*cos(theta));
   double sth = sin(theta);
   if (abs_approx(sth,0.,1e-7)) return (delta>1.); // close to a pole
-  return (((sqrt(delta)-epsPow)*cosm1m2/abs(sth)) > lmax);
+  return (((std::sqrt(delta)-epsPow)*cosm1m2/std::abs(sth)) > lmax);
   }
+
+} // namespace levels

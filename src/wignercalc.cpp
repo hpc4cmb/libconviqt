@@ -1,6 +1,6 @@
 #include "conviqt.hpp"
 
-double xpow (int expo, double val)
+double wigner_xpow (int expo, double val)
   { return (expo&1) ? -val : val; }
 
 double wignerCalc00_halfpi( tsize n )
@@ -25,7 +25,7 @@ double wignerCalc00( double theta, tsize n )
   return rec1;
 }
 
-void wignerCalcGeneral( tsize n, tsize mmax, double theta, arr2<double> &d )
+void wignerCalcGeneral( tsize n, tsize mmax, double theta, levels::arr2<double> &d )
 {
   
   try {
@@ -37,16 +37,16 @@ void wignerCalcGeneral( tsize n, tsize mmax, double theta, arr2<double> &d )
   
   double cth=cos(theta), sth=sin(theta);
   double xsth=1./sth;
-  double fact1 = sqrt(2.*n)*cos(theta/2.)*sin(theta/2.);
-  arr<double> prod1(n+1), prod2(n+1);
+  double fact1 = std::sqrt(2.*n)*cos(theta/2.)*sin(theta/2.);
+  levels::arr<double> prod1(n+1), prod2(n+1);
   
-  arr<double> sqtab(n);
+  levels::arr<double> sqtab(n);
   for (tsize i=0; i<n; ++i)
-    sqtab[i] = 0.5*sqrt((2.*n-i)*(i+1.));
+    sqtab[i] = 0.5*std::sqrt((2.*n-i)*(i+1.));
   
   d[n][mmax] = wignerCalc00(theta,n);
   double d00 = d[n][mmax];
-  double d00_2 = xpow(n,d00);
+  double d00_2 = wigner_xpow(n,d00);
   double rec1 = prod1[n] = fact1/(n*cth);
   for (tsize k=1; k<n; ++k)
     prod1[n-k] = rec1 = -sqtab[k]/( -((n-k)*cth)*xsth + sqtab[k-1]*rec1 );
@@ -54,10 +54,10 @@ void wignerCalcGeneral( tsize n, tsize mmax, double theta, arr2<double> &d )
   for (tsize l=1; l<=n; ++l)
     {
       ratio1 *= prod1[l];
-      d[n-l][mmax] = xpow(l,ratio1);
+      d[n-l][mmax] = wigner_xpow(l,ratio1);
       if (l<=mmax)
 	{
-	  d[n][mmax+l] = xpow(l,ratio1);
+	  d[n][mmax+l] = wigner_xpow(l,ratio1);
 	  d[n][mmax-l] = ratio1;
 	}
     }
@@ -104,7 +104,7 @@ void wignerCalcGeneral( tsize n, tsize mmax, double theta, arr2<double> &d )
 	{
 	  if ((flag1) && (l==i)) continue;
 	  ratio1 *= prod1[l-i];
-	  double p_li = xpow(l+i,1.);
+	  double p_li = wigner_xpow(l+i,1.);
 	  d[n-l][mmax-i] = p_li*ratio1;
 	  if (l<=mmax)
 	    d[n-i][mmax-l] = ratio1;
@@ -113,7 +113,7 @@ void wignerCalcGeneral( tsize n, tsize mmax, double theta, arr2<double> &d )
 	{
 	  if ((flag2) && (l==i)) continue;
 	  ratio2 *= -prod2[l-i];
-	  double p_li = xpow(l+i,1.);
+	  double p_li = wigner_xpow(l+i,1.);
 	  d[n-l][mmax+i] = p_li*ratio2;
 	  if (l<=mmax)
 	    d[n-i][mmax+l] = p_li*ratio2;
@@ -127,10 +127,10 @@ void wignerCalcGeneral( tsize n, tsize mmax, double theta, arr2<double> &d )
   // now apply symmetry conditions to fill the rest of the array
   for (tsize i=1; i<=n; ++i)
     for (tsize j=0; j<=2*mmax; ++j)
-      d[n+i][j] = xpow(j+i+mmax,d[n-i][2*mmax-j]);
+      d[n+i][j] = wigner_xpow(j+i+mmax,d[n-i][2*mmax-j]);
 }
 
-void wignerCalcHalfpi( tsize n, tsize mmax, arr2<double> &d )
+void wignerCalcHalfpi( tsize n, tsize mmax, levels::arr2<double> &d )
 {
   
   try {
@@ -153,7 +153,7 @@ void wignerCalcHalfpi( tsize n, tsize mmax, arr2<double> &d )
       if (1<=mmax) d[n-1][mmax-1] = rec;
       for (tsize k=2; k<=n; k+=2)
 	{
-	  rec *= -sqrt(((n+k-1)*(n-k+2))/double((n-k+1)*(n+k)));
+	  rec *= -std::sqrt(((n+k-1)*(n-k+2))/double((n-k+1)*(n+k)));
 	  d[n-k][mmax] = rec;
 	  if (k<=mmax) d[n][mmax-k] = rec;
 	}
@@ -165,12 +165,12 @@ void wignerCalcHalfpi( tsize n, tsize mmax, arr2<double> &d )
     }
   else
     {
-      double rec = wignerCalc00_halfpi(n-1)*sqrt(n/(n+1.));
+      double rec = wignerCalc00_halfpi(n-1)*std::sqrt(n/(n+1.));
       d[n-1][mmax] = -rec;
       if (1<=mmax) d[n][mmax-1] = rec;
       for (tsize k=3; k<=n; k+=2)
 	{
-	  rec *= -sqrt((n+k-1)*(n-k+2)/double((n-k+1)*(n+k)));
+	  rec *= -std::sqrt((n+k-1)*(n-k+2)/double((n-k+1)*(n+k)));
 	  d[n-k][mmax] = -rec;
 	  if (k<=mmax) d[n][mmax-k] = rec;
 	}
@@ -182,14 +182,14 @@ void wignerCalcHalfpi( tsize n, tsize mmax, arr2<double> &d )
       d00 = d[n-1][mmax];
     }
   
-  arr<double> prod(n+1), sqtab(n);
+  levels:: arr<double> prod(n+1), sqtab(n);
   for (tsize i=0; i<n; ++i)
-    sqtab[i] = 0.5*sqrt((2.*n-i)*(i+1.));
+    sqtab[i] = 0.5*std::sqrt((2.*n-i)*(i+1.));
   
   for (tsize i=1; i<=mmax; ++i)
     {
       double di = double(i);
-      double rec = prod[n-i] = -sqrt(.5*n)/di;
+      double rec = prod[n-i] = -std::sqrt(.5*n)/di;
       
       for (tsize k=1; k<=n-i; ++k)
 	prod[n-i-k] = rec = -sqtab[k] / (di + sqtab[k-1]*rec);
@@ -200,7 +200,7 @@ void wignerCalcHalfpi( tsize n, tsize mmax, arr2<double> &d )
       for (tsize l=lowerLimit; l<=n; ++l)
 	{
 	  ratio *= prod[l-i];
-	  d[n-l][mmax-i] = xpow(l-i,ratio);
+	  d[n-l][mmax-i] = wigner_xpow(l-i,ratio);
 	  if (l<=mmax) d[n-i][mmax-l] = ratio;
 	}
       if (i<mmax)
@@ -208,19 +208,19 @@ void wignerCalcHalfpi( tsize n, tsize mmax, arr2<double> &d )
     }
   // now apply symmetry conditions to fill the rest of the array
   for (tsize j=1; j<=mmax; ++j)
-    d[n][mmax+j] = xpow(n,d[n][mmax-j]);
+    d[n][mmax+j] = wigner_xpow(n,d[n][mmax-j]);
   for (tsize i=1; i<=n; ++i)
-    d[n+i][mmax] = xpow(i,d[n-i][mmax]);
+    d[n+i][mmax] = wigner_xpow(i,d[n-i][mmax]);
   for (tsize i=1; i<=n; ++i)
     for (tsize j=1; j<=mmax; ++j)
       {
-	d[n-i][mmax+j] = xpow(n+i,d[n-i][mmax-j]);
-	d[n+i][mmax-j] = xpow(n+j,d[n-i][mmax-j]);
-	d[n+i][mmax+j] = xpow(i+j,d[n-i][mmax-j]);
+	d[n-i][mmax+j] = wigner_xpow(n+i,d[n-i][mmax-j]);
+	d[n+i][mmax-j] = wigner_xpow(n+j,d[n-i][mmax-j]);
+	d[n+i][mmax+j] = wigner_xpow(i+j,d[n-i][mmax-j]);
       }
 }
 
-void wignerCalc( tsize n, tsize mmax, double theta, arr2<double> &d )
+void wignerCalc( tsize n, tsize mmax, double theta, levels::arr2<double> &d )
 {
   try {
     d.fast_alloc (2*n+1,2*mmax+1);
@@ -248,21 +248,21 @@ void wignerCalc( tsize n, tsize mmax, double theta, arr2<double> &d )
 	}
       theta = theta - thetasign*anglefac*twopi;
     }
-  if ( (abs_approx(theta, 0., 1e-14)) || (abs_approx(fabs(theta), twopi, conv_acc) ))
+  if ( (levels::abs_approx(theta, 0., 1e-14)) || (levels::abs_approx(fabs(theta), twopi, conv_acc) ))
     {
       d.fill(0.);
       for (tdiff k=-mm; k<=mm; ++k)
 	d[n+k][mmax+k] = 1.;
       return;
     }
-  if (abs_approx(theta, pi, 1e-14))
+  if (levels::abs_approx(theta, pi, 1e-14))
     {
       d.fill(0.);
       for (tdiff k=-mm; k<=mm; ++k)
-	d[n+k][mmax+k] = xpow(n+k,1.);
+	d[n+k][mmax+k] = wigner_xpow(n+k,1.);
       return;
     }
-  if ( abs_approx(theta, halfpi, 1e-14) )
+  if ( levels::abs_approx(theta, halfpi, 1e-14) )
     {
       wignerCalcHalfpi( n, mmax, d );
       return;

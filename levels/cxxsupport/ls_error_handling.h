@@ -29,66 +29,72 @@
  *  Authors: Reinhard Hell, Martin Reinecke
  */
 
-#ifndef PLANCK_ERROR_HANDLING_H
-#define PLANCK_ERROR_HANDLING_H
+#ifndef LEVELS_ERROR_HANDLING_H
+#define LEVELS_ERROR_HANDLING_H
 
 #include <string>
 #include <iostream>
 
+namespace levels {}
+
+using namespace levels;
+
+namespace levels {
+
 #if defined (__GNUC__)
-#define PLANCK_FUNC_NAME__ __PRETTY_FUNCTION__
+#define LEVELS_FUNC_NAME__ __PRETTY_FUNCTION__
 #else
-#define PLANCK_FUNC_NAME__ 0
+#define LEVELS_FUNC_NAME__ 0
 #endif
 
-void planck_failure__(const char *file, int line, const char *func,
+void levels_failure__(const char *file, int line, const char *func,
   const std::string &msg);
-void planck_failure__(const char *file, int line, const char *func,
+void levels_failure__(const char *file, int line, const char *func,
   const char *msg);
 void killjob__();
 
-class PlanckError
+class LEVELSError
   {
   private:
     std::string msg;
 
   public:
-    explicit PlanckError(const std::string &message);
-    explicit PlanckError(const char *message);
+    explicit LEVELSError(const std::string &message);
+    explicit LEVELSError(const char *message);
 
     virtual const char* what() const
       { return msg.c_str(); }
 
-    virtual ~PlanckError();
+    virtual ~LEVELSError();
   };
 
 /*! \defgroup errorgroup Error handling */
 /*! \{ */
 
 /*! Writes diagnostic output and exits with an error status. */
-#define planck_fail(msg) \
-do { planck_failure__(__FILE__,__LINE__,PLANCK_FUNC_NAME__,msg); \
-throw PlanckError(msg); } while(0)
+#define levels_fail(msg) \
+  do { levels_failure__(__FILE__,__LINE__,LEVELS_FUNC_NAME__,msg); \
+throw LEVELSError(msg); } while(0)
 
-/*! Throws a PlanckError without diagnostic message. */
-#define planck_fail_quietly(msg) \
-do { throw PlanckError(msg); } while(0)
+/*! Throws a LEVELSError without diagnostic message. */
+#define levels_fail_quietly(msg) \
+do { throw LEVELSError(msg); } while(0)
 
 /*! Writes diagnostic output and exits with an error status if \a testval
     is \a false. */
-#define planck_assert(testval,msg) \
-do { if (testval); else planck_fail(msg); } while(0)
+#define levels_assert(testval,msg) \
+do { if (testval); else levels_fail(msg); } while(0)
 
 /*! Macro for improving error diagnostics. Should be placed immediately
     after the opening brace of \c main(). Must be used in conjunction with
-    \c PLANCK_DIAGNOSIS_END. */
-#define PLANCK_DIAGNOSIS_BEGIN try {
+    \c LEVELS_DIAGNOSIS_END. */
+#define LEVELS_DIAGNOSIS_BEGIN try {
 /*! Macro for improving error diagnostics. Should be placed immediately
     before the closing brace of \c main(). Must be used in conjunction with
-    \c PLANCK_DIAGNOSIS_BEGIN. */
-#define PLANCK_DIAGNOSIS_END \
+    \c LEVELS_DIAGNOSIS_BEGIN. */
+#define LEVELS_DIAGNOSIS_END \
 } \
-catch (PlanckError &) \
+catch (LEVELSError &) \
   { killjob__(); /* no need for further diagnostics; they were shown already */ } \
 catch (std::exception &e) \
   { std::cerr << "std::exception: " << e.what() << std::endl; killjob__(); } \
@@ -96,5 +102,7 @@ catch (...) \
   { std::cerr << "Unknown exception" << std::endl; killjob__(); }
 
 /*! \} */
+
+} // namespace levels
 
 #endif

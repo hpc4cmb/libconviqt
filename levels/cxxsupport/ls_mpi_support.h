@@ -17,7 +17,7 @@
  */
 
 /*
- * mpi_support.h, mpi_support.cc and error_handling.cc have been modified to support libconviqt:
+ * ls_mpi_support.h, mpi_support.cc and error_handling.cc have been modified to support libconviqt:
  *   - there is no longer a static instance, extern MPI_Manager mpiMgr, instead, 
  *     calling codes must instantiate their own managers and optionally supply the
  *     communicator
@@ -36,8 +36,8 @@
  *  \author Martin Reinecke
  */
 
-#ifndef PLANCK_MPI_SUPPORT_H
-#define PLANCK_MPI_SUPPORT_H
+#ifndef LEVELS_MPI_SUPPORT_H
+#define LEVELS_MPI_SUPPORT_H
 
 #ifdef USE_MPI
 #include "mpi.h"
@@ -46,9 +46,11 @@ typedef int MPI_Comm;
 #define MPI_COMM_WORLD 0;
 #endif
 
-#include "datatypes.h"
-#include "arr.h"
-#include "share_utils.h"
+#include "ls_datatypes.h"
+#include "ls_arr.h"
+#include "ls_share_utils.h"
+
+namespace levels {
 
 class MPI_Manager
   {
@@ -282,5 +284,7 @@ class MPI_Manager
   };
 
 //extern MPI_Manager mpiMgr;
+
+} // namespace levels
 
 #endif

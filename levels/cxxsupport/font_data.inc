@@ -1,5 +1,5 @@
-#ifndef PLANCK_FONT_DATA_INC
-#define PLANCK_FONT_DATA_INC
+#ifndef LEVELS_FONT_DATA_INC
+#define LEVELS_FONT_DATA_INC
 
 const char *medium_bold_font_data=
 "       "

@@ -29,10 +29,12 @@
  *  \author Martin Reinecke
  */
 
-#ifndef PLANCK_SHARE_UTILS_H
-#define PLANCK_SHARE_UTILS_H
+#ifndef LEVELS_SHARE_UTILS_H
+#define LEVELS_SHARE_UTILS_H
 
-#include "datatypes.h"
+#include "ls_datatypes.h"
+
+namespace levels {
 
 /*! Divides the index range [\a glo; \a ghi) into \a nshares approximately
     equal parts, and returns the sub-range [\a lo; \a hi) of the
@@ -78,5 +80,7 @@ class chunkMaker
       return true;
       }
   };
+
+} // namespace levels
 
 #endif
