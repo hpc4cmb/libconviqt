@@ -1,1 +1,1 @@
-SUBDIRS = c_utils cxxsupport
+SUBDIRS = c_utils cxxsupport libfftpack

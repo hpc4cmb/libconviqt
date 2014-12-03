@@ -8,27 +8,25 @@ AM_INIT_AUTOMAKE([foreign -Wall -Werror])
 AC_CONFIG_SRCDIR([src/conviqt.hpp])
 
 AC_CONFIG_HEADERS([config.h])
-AC_CONFIG_FILES([Makefile src/Makefile levels/Makefile levels/cxxsupport/Makefile levels/c_utils/Makefile])
+AC_CONFIG_FILES([Makefile src/Makefile levels/Makefile levels/cxxsupport/Makefile levels/c_utils/Makefile levels/libfftpack/Makefile])
 
 # Ensure the necessary compilers work. Libconviqt is an MPI C++ code
 AC_PROG_CC_C99
 AC_LANG_PUSH([C])
-CPPFLAGS="$CPPFLAGS $OPENMP_CFLAGS"
-CFLAGS="$CFLAGS $OPENMP_CFLAGS"
+AC_OPENMP
 
 AC_PROG_CXX
 AC_LANG_PUSH([C++])
 AX_CXX_COMPILE_STDCXX_11
 AC_OPENMP
-CXXFLAGS="$CXXFLAGS $OPENMP_CFLAGS"
-#AX_OPENMP
-#AC_SUBST(OPENMP_CXXFLAGS)
 
-ACX_MPI
-AM_CONDITIONAL([HAVE_AM_MPI], [test x"$MPICXX" != x])
-if test x"$MPICXX" != x; then
-  CXX=$MPICXX
-fi
+CPPFLAGS="$CPPFLAGS $OPENMP_CFLAGS"
+CFLAGS="$CFLAGS $OPENMP_CFLAGS"
+CXXFLAGS="$CXXFLAGS $OPENMP_CXXFLAGS"
+
+ACX_MPI([], [AC_MSG_ERROR([No MPI compiler available!])])
+CXX=$MPICXX
+AC_DEFINE([USE_MPI],[1],[Tell LevelS mpi_wrappers to use MPI])
 
 AC_REQUIRE_CPP
 
@@ -46,6 +44,7 @@ AC_MSG_NOTICE([=========== Build Configuration ===========])
 AC_MSG_NOTICE([                                           ])
 AC_MSG_NOTICE([  C Compiler                : $CC])
 AC_MSG_NOTICE([  C Compile Flags           : $CFLAGS])
+#AC_MSG_NOTICE([  C OpenMP Flags            : $OPENMP_CFLAGS])
 AC_MSG_NOTICE([  C++ Compiler              : $CXX])
 AC_MSG_NOTICE([  C++ Compile Flags         : $CXXFLAGS])
 #AC_MSG_NOTICE([  C++ OpenMP Flags          : $OPENMP_CXXFLAGS])

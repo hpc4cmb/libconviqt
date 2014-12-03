@@ -7,9 +7,9 @@
 #include <iomanip>
 #include <string>
 
-#include <toast_mpi.hpp>
+//#include <toast_mpi.hpp>
 #include "mpi.h"
-#include <toast.hpp>
+//#include <toast.hpp>
 
 #include "planck_rng.h"
 #include "lsconstants.h"
@@ -50,6 +50,7 @@ using namespace std;
 
 #define CMULT_VERBOSITY 0
 
+/*
 class toast_samples {
 
 public :
@@ -183,7 +184,7 @@ class toast_chunk_process {
     }
 
 };
-
+*/
 namespace {
 
 double xpow (int expo, double val)
@@ -994,13 +995,13 @@ void conviqt_hemiscm_pol_fast(Alm<xcomplex<float> > &blmT, Alm<xcomplex<float> >
   todAnnulus(tod1, Cmm, lmax, beammmax, lmaxOut, cs, sn, cs0, sn0);
   todAnnulus(tod2, Cmm2, lmax, beammmax, lmaxOut, cs, sn, cs0, sn0);
 }
-
+/*
 inline bool exists_test3 (const std::string& name) 
 {
   struct stat buffer;   
   return (stat (name.c_str(), &buffer) == 0); 
 }
-
+*/
 void conviqt_hemiscm_pol_fill(Alm<xcomplex<float> > &blmT, Alm<xcomplex<float> > &slmT, Alm<xcomplex<float> > &blmG, Alm<xcomplex<float> > &slmG, Alm<xcomplex<float> > &blmC, Alm<xcomplex<float> > &slmC, long beammmax, long lmax, long lmaxOut, arr2<xcomplex<double> > &tod1, arr2<xcomplex<double> > &tod2, double beta, arr<long> &effM, long &countdlm, int corenum, arr<double> &dlmelements)
 {
   long binElements=2*lmaxOut+1;
@@ -1383,10 +1384,31 @@ void conviqt_hemiscm_pol_single(Alm<xcomplex<float> > &blmT, Alm<xcomplex<float>
 		      Cmm(-msky+lmaxOut, beamIndex, lat).real() += xtmp_3;
 		      Cmm(-msky+lmaxOut, beamIndex, lat).imag() += xtmp_4;
 		    }
+		  // DEBUG
+		  if ( beamIndex==0 && msky==0 && lat==0 )
+		    {
+		      std::cerr << "    " << slmT(ii,msky) << " " << slmG(ii,msky) << " "  << slmC(ii,msky) << std::endl;
+		      std::cerr << "    " << blmT(ii,beamIndex) << " " << blmG(ii,beamIndex) << " "  << blmC(ii,beamIndex) << std::endl;
+ 		      std::cerr << ii << " " << dMatrixElementmskypos << " " << dMatrixElementmskyneg << " " << prod1 << " " << prod3 << " " << prod2 << " " << prod4 << " " << tmp_1 << " " << tmp_2 << " " << tmp_3 << " " << tmp_4 << " " << xtmp_1 << " " << xtmp_2 << " " << xtmp_3 << " " << xtmp_4 << std::endl;
+		    }
+		  // end DEBUG
 		}
 	    }
 	}
     }
+
+  // DEBUG
+  //if ( corenum == 0 )
+  {
+    std::cerr << "Cmm: " << std::endl;
+    for ( int i=0; i<3; ++i )
+      for ( int j=0; j<3; ++j )
+	for ( int k=0; k<3; ++k )
+	  std::cerr << Cmm(i,j,k) << std::endl;
+    std::cerr << std::endl;
+  }
+  // end DEBUG
+
   arr<double> cs(2*lmax+1), sn(2*lmax+1), cs0(binElements), sn0(binElements);
   for (long msky = -lmax; msky <= lmax; msky++)
       {
@@ -1888,6 +1910,17 @@ void interpolTOD_arrTestcm_pol_v4(Alm<xcomplex<float> > &blmT, Alm<xcomplex<floa
   double elapsed_secs=0.;
   clock_t begin = clock();
 
+  // DEBUG
+  if ( corenum == 0 )
+    {
+      std::cerr << "right before conviqt calls: " << std::endl;
+      for ( int i=0; i<10; ++i )
+	std::cerr << TODAsym(i,0,0) << " " << TODAsym2(i,0,0) << " " << rthetas1[i] << " " << rthetas2[i] << std::endl;
+      std::cerr << " fNThetaIndex = " << fNThetaIndex << " blmT(0,0) = " << blmT(0,0) << " slmT(0,0) = " << slmT(0,0) << std::endl;
+      std::cerr << std::endl;
+    }
+  // end DEBUG
+
   if (fNThetaIndex) 
     conviqt_hemiscm_pol_v4(blmT, slmT, blmG, slmG, blmC, slmC, beammmax, lmax, lmaxOut, TODAsym, TODAsym2, NThetaIndex1, rthetas1);
   else
@@ -1895,12 +1928,44 @@ void interpolTOD_arrTestcm_pol_v4(Alm<xcomplex<float> > &blmT, Alm<xcomplex<floa
       if (NThetaIndex1!=0) conviqt_hemiscm_pol_single(blmT, slmT, blmG, slmG, blmC, slmC, beammmax, lmax, lmaxOut, TODAsym, NThetaIndex1, rthetas1);
       if (NThetaIndex2!=0) conviqt_hemiscm_pol_single(blmT, slmT, blmG, slmG, blmC, slmC, beammmax, lmax, lmaxOut, TODAsym2, NThetaIndex2, rthetas2);
     }
+
+  // DEBUG
+  if ( corenum == 0 )
+    {
+      std::cerr << "right after conviqt call (1): " << std::endl;
+      for ( int i=0; i<10; ++i )
+	std::cerr << TODAsym(i,0,0) << " " << TODAsym2(i,0,0) << " " << rthetas1[i] << " " << rthetas2[i] << std::endl;
+      std::cerr << std::endl;
+    }
+  // end DEBUG
+
   if ( CMULT_VERBOSITY > 1 ) cout << "After conviqt if" << endl;
   clock_t end = clock();
   elapsed_secs += double(end - begin) / CLOCKS_PER_SEC;
 
   if (ntod>0) for (int thetaIndex=0; thetaIndex<NThetaIndex1; ++thetaIndex) conviqt_tod_loop_pol_v5(lowerIndex, upperIndex, outpntarr1, TODAsym, thetaIndex, itheta0, order, max_order, inv_delta_theta, theta0, inv_delta_phi, phioffset, nphi, ioffset, beammmax, npoints, ntod, TODValue, thetaIndex);
-  if (ntod2>0) for (int thetaIndex=0; thetaIndex<NThetaIndex2; ++thetaIndex) conviqt_tod_loop_pol_v5(lowerIndex2, upperIndex2, outpntarr2, TODAsym2, thetaIndex, itheta0_2, order, max_order, inv_delta_theta, theta0, inv_delta_phi, phioffset, nphi, ioffset, beammmax, npoints, ntod2, TODValue2, thetaIndex);
+
+  // DEBUG
+  if ( corenum == 0 )
+    {
+      std::cerr << "right after conviqt call (2): " << std::endl;
+      for ( int i=0; i<10; ++i )
+	std::cerr << TODAsym(i,0,0) << " " << TODAsym2(i,0,0) << " " << rthetas1[i] << " " << rthetas2[i] << std::endl;
+      std::cerr << std::endl;
+    }
+  // end DEBUG
+
+if (ntod2>0) for (int thetaIndex=0; thetaIndex<NThetaIndex2; ++thetaIndex) conviqt_tod_loop_pol_v5(lowerIndex2, upperIndex2, outpntarr2, TODAsym2, thetaIndex, itheta0_2, order, max_order, inv_delta_theta, theta0, inv_delta_phi, phioffset, nphi, ioffset, beammmax, npoints, ntod2, TODValue2, thetaIndex);
+
+  // DEBUG
+  if ( corenum == 0 )
+    {
+      std::cerr << "right after conviqt call (3): " << std::endl;
+      for ( int i=0; i<10; ++i )
+	std::cerr << TODAsym(i,0,0) << " " << TODAsym2(i,0,0) << " " << rthetas1[i] << " " << rthetas2[i] << std::endl;
+      std::cerr << std::endl;
+    }
+  // end DEBUG
 
   double maxtod = 0., maxtod2 = 0.;
   if (ntod>0) for (long ii=0; ii<ntod; ii++) if (maxtod<abs(TODValue[ii])) maxtod=abs(TODValue[ii]);
@@ -1942,6 +2007,17 @@ void todgen_v4(paramfile &par_file, long ntod, long ntod2, arr<double> &todTest_
       todTest_arr2.alloc(ntod2);
       todTest_arr2.fill(0);
     }
+
+  // DEBUG
+  if ( corenum == 0 )
+    {
+      std::cerr << "Beginning of outpntarr1&2 and timetest_arr and timetest_arr2: " << std::endl;
+      for ( int i=0; i<10; ++i )
+	std::cerr << outpntarr1[i] << " " << timeTest_arr[i] << " " << outpntarr2[i] << " " << timeTest_arr2[i] << std::endl;
+      std::cerr << std::endl;
+    }
+  // end DEBUG
+
   long lmaxOut = par_file.find<long>("lmaxOut", 3000);
   long order= par_file.find<long>("order", 5), offindex;
   order+=dorder;
@@ -2134,6 +2210,16 @@ void tod_calc4 (paramfile &par_file, arr<double> &pntarr, double &t_read)
   long dorder=0;
   //  if (outpntarr[1]<0.05) dorder=2;
 
+  // DEBUG
+  if ( corenum == 0 )
+    {
+      std::cerr << "Beginning of outpntarr: ";
+      for ( int i=0; i<10; ++i )
+	std::cerr << outpntarr[i] << ", ";
+      std::cerr << std::endl;
+    }
+  // end DEBUG
+
   long ncores=125;
   long coreratio=corenum/ncores;
   long newcorenum=ncores*coreratio;
@@ -2164,6 +2250,23 @@ void tod_calc4 (paramfile &par_file, arr<double> &pntarr, double &t_read)
 	todgen_v4(par_file, ntod, ntod2, todTest_arr, timeTest_arr, todTest_arr2, timeTest_arr2, outpntarr, lmax, beammmax, pol, blmT, slmInputT, blmG, slmInputG, blmC, slmInputC, corenum, dorder);
       else
 	if ( CMULT_VERBOSITY > 1 ) cout << "no data to process in corenum = " << corenum << endl;
+      // DEBUG
+      if ( corenum == 0 )
+	{
+	  std::cerr << "Beginning of outpntarr (v2): ";
+	  for ( int i=0; i<10; ++i )
+	    std::cerr << outpntarr[i] << ", ";
+	  std::cerr << std::endl;
+	}
+      if ( corenum == 0 )
+	{
+	  std::cerr << "Beginning of todtest and timetest: " << std::endl;
+	  for ( int i=0; i<10; ++i )
+	    std::cerr << todTest_arr[i] << " " << timeTest_arr[i] << " " << todTest_arr2[i] << " " << timeTest_arr2[i] << std::endl;
+	  std::cerr << std::endl;
+	}
+      // end DEBUG
+
       //    outpntarr.dealloc();
       clock_t end = clock();
       double elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
@@ -2274,8 +2377,19 @@ void tod_calc4 (paramfile &par_file, arr<double> &pntarr, double &t_read)
     }
   arr<double> outtodarr, outnumarr;
   if (totsize !=0 || outBetaSegSize != 0) mpiMgr.all2allv(todAll, outBetaSeg, outOffset, outtodarr, inBetaSeg, inOffset, totsize);
-  if (outBetaSegSize!=0) todAll.dealloc();
   if (totsize !=0 || outBetaSegSize != 0) mpiMgr.all2allv(timeAll, outBetaSeg, outOffset, outnumarr, inBetaSeg, inOffset, totsize);
+
+  // DEBUG
+  if ( corenum == 0 )
+    {
+      std::cerr << "Beginning of todAll and timeAll: " << std::endl;
+      for ( int i=0; i<10; ++i )
+	std::cerr << todAll[i] << " " << timeAll[i] << " " << outtodarr[i] << " " << outnumarr[i] << std::endl;
+      std::cerr << std::endl;
+    }
+  // end DEBUG
+  
+  if (outBetaSegSize!=0) todAll.dealloc();
   if (outBetaSegSize!=0) timeAll.dealloc();
 
   double maxtodall(0), mintodall(1e10);

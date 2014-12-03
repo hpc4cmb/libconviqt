@@ -17,6 +17,14 @@
  */
 
 /*
+ * mpi_support.h, mpi_support.cc and error_handling.cc have been modified to support libconviqt:
+ *   - there is no longer a static instance, extern MPI_Manager mpiMgr, instead, 
+ *     calling codes must instantiate their own managers and optionally supply the
+ *     communicator
+ * 2014-12-01 - Reijo Keskitalo 
+ */
+
+/*
  *  libcxxsupport is being developed at the Max-Planck-Institut fuer Astrophysik
  *  and financially supported by the Deutsches Zentrum fuer Luft- und Raumfahrt
  *  (DLR).
@@ -27,15 +35,16 @@
  *  \author Martin Reinecke
  */
 
-#ifdef USE_MPI
-#include "mpi.h"
-#else
+//#ifdef USE_MPI
+//#include "mpi.h"
+//#else
+#ifndef USE_MPI
 #include <cstring>
 #include <cstdlib>
 #endif
 #include "mpi_support.h"
 
-MPI_Manager mpiMgr;
+//MPI_Manager mpiMgr;
 
 using namespace std;
 
@@ -48,7 +57,8 @@ void assert_unequal (const void *a, const void *b)
 
 #ifdef USE_MPI
 
-#define LS_COMM MPI_COMM_WORLD
+//#define LS_COMM MPI_COMM_WORLD
+#define LS_COMM comm_
 
 namespace {
 
@@ -139,24 +149,26 @@ void MPI_Manager::all2allv_easy_prep (tsize insz, const arr<int> &numin,
 
 #ifdef USE_MPI
 
-MPI_Manager::MPI_Manager ()
+MPI_Manager::MPI_Manager ( MPI_Comm comm ) : comm_(comm)
   {
   int flag;
   MPI_Initialized(&flag);
   if (!flag)
     {
     MPI_Init(0,0);
-    MPI_Errhandler_set(LS_COMM, MPI_ERRORS_ARE_FATAL);
+    MPI_Errhandler_set( LS_COMM, MPI_ERRORS_ARE_FATAL);
     }
   MPI_Comm_size(LS_COMM, &num_ranks_);
   MPI_Comm_rank(LS_COMM, &rank_);
   }
 MPI_Manager::~MPI_Manager ()
   {
-  int flag;
-  MPI_Finalized(&flag);
-  if (!flag)
-    MPI_Finalize();
+    /*
+      int flag;
+      MPI_Finalized(&flag);
+      if (!flag)
+      MPI_Finalize();
+    */
   }
 
 void MPI_Manager::abort() const

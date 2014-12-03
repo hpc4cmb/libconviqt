@@ -64,8 +64,8 @@ AC_REQUIRE([ACX_CFITSIO])
 #AC_REQUIRE([AX_OPENMP])
 
 acx_healpix_cxx_ok=no
-#acx_healpix_cxx_default="-lhealpix_cxx -lcxxsupport -lfftpack"
-acx_healpix_cxx_default="-lhealpix_cxx"
+acx_healpix_cxx_default="-lhealpix_cxx -lcxxsupport -lfftpack"
+#acx_healpix_cxx_default="-lhealpix_cxx"
 
 HEALPIX_CXX_CPPFLAGS=""
 HEALPIX_CXX=""

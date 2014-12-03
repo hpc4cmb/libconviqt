@@ -1,8 +1,8 @@
 #include <stdexcept>
 #include <complex>
 #include <algorithm>
-#include <toast_mpi.hpp>
-#include <toast.hpp>
+//#include <toast_mpi.hpp>
+//#include <toast.hpp>
 #include <cmath>
 #include <cstdlib>
 #include <time.h>
@@ -91,7 +91,7 @@ int bin_map( paramfile & par_file, arr<double> pntarr, int id ) {
 
 // This functor sums up the number of samples assigned to this process
 // FOR EACH CHANNEL.
-
+/*
 class toast_samples {
 
 public :
@@ -228,13 +228,13 @@ public :
   }
 
 };
-
+*/
 void ratiobetacalcgreatercm(long &ratiobeta, double theta, int cores, arr<double> &corethetaarr);
 
 void ratiobetacalcsmallercm(long &ratiobeta, double theta, int cores, arr<double> &corethetaarr);
 
 void thetaDeltaThetacm(double thetaini, int cores, int corenum, double &theta, double &deltatheta);
-
+/*
 void toastReadData ( arr < double > & pntarr, const string det_id, paramfile & par_file, bool galactic, bool apply_flags, double ratiodeltas, int cores, arr<double> &corethetaarr, int corenum, double psi_pol, string toast_distribution )
 {
   // Read run file
@@ -318,7 +318,7 @@ void toastReadData ( arr < double > & pntarr, const string det_id, paramfile & p
       pntarr[5*ii+4]=pntarrtmp[5*ii+4];
     }
 }
-
+*/
 void deltaTheta2(long iival, double thetaini, arr<double> &dbeta);
 
 void tod_calc4 (paramfile &par_file, arr<double> &pntarr, double &t_read);
@@ -345,13 +345,13 @@ void IScalm2TODEx (paramfile &par_file)
 
   // Parse the injection parameters
 
-  string eff_dir = par_file.find<string>("eff_dir");
-  string file_pattern = par_file.find<string>("file_pattern",".*");
-  string det_pattern = par_file.find<string>("det_pattern",".*"+det_id+".*");
-  bool add = par_file.find<bool>("add",false);
+  string eff_dir = ""; // par_file.find<string>("eff_dir");
+  string file_pattern = ""; // par_file.find<string>("file_pattern",".*");
+  string det_pattern = ""; // par_file.find<string>("det_pattern",".*"+det_id+".*");
+  bool add = false; // par_file.find<bool>("add",false);
   double scale;
   try {
-    scale = par_file.find<double>("scale",1.0);
+    scale = 1; // par_file.find<double>("scale",1.0);
   } catch (...) {
     if ( corenum == 0 ) cerr << "ERROR: failed to parse the scale factor" << endl;
     throw;
@@ -405,7 +405,34 @@ void IScalm2TODEx (paramfile &par_file)
   t_init = (t2=MPI_Wtime()) - t1;
 
   arr<double> pntarr;
-  toastReadData ( pntarr, det_id, par_file, galactic, apply_flags, ratiodeltas, cores, corethetaarr, corenum, psi_pol, par_file.find<string>("toast_distribution","OBSERVATION") );
+  
+  //toastReadData ( pntarr, det_id, par_file, galactic, apply_flags, ratiodeltas, cores, corethetaarr, corenum, psi_pol, par_file.find<string>("toast_distribution","OBSERVATION") );
+
+  // Populate the pointing array
+
+  long ntheta = 3;
+  long nphi = 3;
+  long npsi = 3;
+  long nsamp = ntheta*nphi*npsi;
+
+  pntarr.alloc( 5 * nsamp );
+
+  long row=0;
+  for ( long itheta=0; itheta < ntheta; ++itheta ) {
+    double theta = itheta * (pi / (double)ntheta);
+    for ( long iphi=0; iphi < nphi; ++iphi ) {
+      double phi = iphi * (twopi / (double)nphi);
+      for ( long ipsi=0; ipsi < npsi; ++ipsi ) {
+	double psi = ipsi * (pi / (double)npsi);
+	pntarr[row*5+0] = phi; // longitude
+	pntarr[row*5+1] = theta; // latitude
+	pntarr[row*5+2] = psi; // position angle
+	pntarr[row*5+3] = 0; // TOD
+	pntarr[row*5+4] = row; // time
+	++row;
+      }
+    }
+  }
 
   t_read_tod = (t1=MPI_Wtime()) - t2;
 
@@ -478,6 +505,13 @@ void IScalm2TODEx (paramfile &par_file)
 
   t_convolve = (t2=MPI_Wtime()) - t1 - t_read_alm;
 
+  if ( corenum == 0 ) {
+    std::cout << "Convolved TOD:" << std::endl;
+    for ( long row=0; row < nsamp; ++row ) {
+      std::cout << pntarr[row*5+4] << " " << pntarr[row*5+3] << std::endl;
+    }
+  }
+
   // Inject the data
 
   MPI_Barrier( MPI_COMM_WORLD );
@@ -492,11 +526,11 @@ void IScalm2TODEx (paramfile &par_file)
 
   t1 = MPI_Wtime();
 
-  injector inj( eff_dir, file_pattern, det_pattern, scale, add, cores, corenum, 0 );
+  //injector inj( eff_dir, file_pattern, det_pattern, scale, add, cores, corenum, 0 );
 
   t_init_write = (t2=MPI_Wtime()) - t1;
 
-  inj.inject( pntarr );
+  //inj.inject( pntarr );
 
   t_write = (t1=MPI_Wtime()) - t2;
 
@@ -506,7 +540,7 @@ void IScalm2TODEx (paramfile &par_file)
 
   t1 = MPI_Wtime();
 
-  bin_map( par_file, pntarr, corenum );
+  //bin_map( par_file, pntarr, corenum );
 
   t_bin = (t2=MPI_Wtime()) - t1;
 

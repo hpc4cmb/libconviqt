@@ -17,6 +17,14 @@
  */
 
 /*
+ * mpi_support.h, mpi_support.cc and error_handling.cc have been modified to support libconviqt:
+ *   - there is no longer a static instance, extern MPI_Manager mpiMgr, instead, 
+ *     calling codes must instantiate their own managers and optionally supply the
+ *     communicator
+ * 2014-12-01 - Reijo Keskitalo 
+ */
+
+/*
  *  libcxxsupport is being developed at the Max-Planck-Institut fuer Astrophysik
  *  and financially supported by the Deutsches Zentrum fuer Luft- und Raumfahrt
  *  (DLR).
@@ -54,4 +62,7 @@ void planck_failure__(const char *file, int line, const char *func,
   { planck_failure__ (file,line,func,string(msg)); }
 
 void killjob__()
-  { mpiMgr.abort(); }
+  {
+    MPI_Manager mpiMgr;
+    mpiMgr.abort();
+  }

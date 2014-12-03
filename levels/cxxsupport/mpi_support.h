@@ -17,6 +17,15 @@
  */
 
 /*
+ * mpi_support.h, mpi_support.cc and error_handling.cc have been modified to support libconviqt:
+ *   - there is no longer a static instance, extern MPI_Manager mpiMgr, instead, 
+ *     calling codes must instantiate their own managers and optionally supply the
+ *     communicator
+ *   - destroying an MPI_Manager instance no longer calls MPI_Finalize
+ * 2014-12-01 - Reijo Keskitalo 
+ */
+
+/*
  *  libcxxsupport is being developed at the Max-Planck-Institut fuer Astrophysik
  *  and financially supported by the Deutsches Zentrum fuer Luft- und Raumfahrt
  *  (DLR).
@@ -29,6 +38,13 @@
 
 #ifndef PLANCK_MPI_SUPPORT_H
 #define PLANCK_MPI_SUPPORT_H
+
+#ifdef USE_MPI
+#include "mpi.h"
+#else
+typedef int MPI_Comm;
+#define MPI_COMM_WORLD 0;
+#endif
 
 #include "datatypes.h"
 #include "arr.h"
@@ -50,9 +66,10 @@ class MPI_Manager
       arr<int> &numout, arr<int> &disout) const;
 
     int num_ranks_, rank_;
+    MPI_Comm comm_;
 
   public:
-    MPI_Manager();
+    MPI_Manager( MPI_Comm comm=MPI_COMM_WORLD );
     ~MPI_Manager();
 
     void abort() const;
@@ -60,6 +77,7 @@ class MPI_Manager
     int num_ranks() const { return num_ranks_; }
     int rank() const { return rank_; }
     bool master() const { return rank_==0; }
+    MPI_Comm comm() const { return comm_; }
 
     void barrier() const;
 
@@ -263,6 +281,6 @@ class MPI_Manager
       }
   };
 
-extern MPI_Manager mpiMgr;
+//extern MPI_Manager mpiMgr;
 
 #endif
