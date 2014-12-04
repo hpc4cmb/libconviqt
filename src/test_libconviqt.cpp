@@ -42,7 +42,7 @@ int main( int argc, char **argv ) {
     bool pol=(ipol==0); // default false
     double fwhm=4.0;
     std::string beamfile( "../data/mb_lfi_30_27_x_rescaled.alm" );
-    std::string skyfile( "../data/ffp8_fg_030_alm.fits" );
+    std::string skyfile( "../data/slm.fits" );
     
     b.read( beamlmax, beammmax, pol, beamfile, comm );
     s.read( lmax, pol, skyfile, fwhm, comm );
@@ -90,13 +90,13 @@ int main( int argc, char **argv ) {
       }
 
       if ( pol ) {
-	if ( fabs( pnt[ 0*5+3] - 0.000760797 ) > 1e-9 ) throw std::runtime_error( "Row 0 should be 0.000760797, not " + std::to_string(pnt[ 0*5+3]) );
-	if ( fabs( pnt[10*5+3] + 0.000179658 ) > 1e-9 ) throw std::runtime_error( "Row 10 should be -0.000179658, not " + std::to_string(pnt[10*5+3]) );
-	if ( fabs( pnt[15*5+3] - 3.57158e-05 ) > 1e-9 ) throw std::runtime_error( "Row 15 should be 3.57158e-05, not " + std::to_string(pnt[15*5+3]) );
+	if ( fabs( pnt[ 0*5+3] -  0.854635 ) > 1e-6 ) throw std::runtime_error( "Row 0 should be 0.854635, not "  + std::to_string(pnt[ 0*5+3]) );
+	if ( fabs( pnt[10*5+3] + 25.5373   ) > 1e-4 ) throw std::runtime_error( "Row 10 should be -25.5373, not " + std::to_string(pnt[10*5+3]) );
+	if ( fabs( pnt[15*5+3] + 76.0495   ) > 1e-4 ) throw std::runtime_error( "Row 15 should be -76.0495, not " + std::to_string(pnt[15*5+3]) );
       } else {
-	if ( fabs( pnt[ 0*5+3] - 0.000760793 ) > 1e-9 ) throw std::runtime_error( "Row 0 should be 0.000760793, not " + std::to_string(pnt[ 0*5+3]) );
-	if ( fabs( pnt[10*5+3] + 0.00015767  ) > 1e-9 ) throw std::runtime_error( "Row 10 should be -0.00015767, not " + std::to_string(pnt[10*5+3]) );
-	if ( fabs( pnt[15*5+3] - 3.53827e-05 ) > 1e-9 ) throw std::runtime_error( "Row 15 should be 3.53827e-05, not " + std::to_string(pnt[15*5+3]) );
+	if ( fabs( pnt[ 0*5+3] -  0.854585 ) > 1e-6 ) throw std::runtime_error( "Row 0 should be 0.854585, not "  + std::to_string(pnt[ 0*5+3]) );
+	if ( fabs( pnt[10*5+3] + 25.2015   ) > 1e-4 ) throw std::runtime_error( "Row 10 should be -25.2015, not " + std::to_string(pnt[10*5+3]) );
+	if ( fabs( pnt[15*5+3] + 76.1472   ) > 1e-4 ) throw std::runtime_error( "Row 15 should be -76.1472, not " + std::to_string(pnt[15*5+3]) );
       }
     
     }

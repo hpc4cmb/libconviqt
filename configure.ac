@@ -8,7 +8,7 @@ AM_INIT_AUTOMAKE([foreign -Wall -Werror])
 AC_CONFIG_SRCDIR([src/conviqt.hpp])
 
 AC_CONFIG_HEADERS([config.h])
-AC_CONFIG_FILES([Makefile src/Makefile levels/Makefile levels/cxxsupport/Makefile levels/c_utils/Makefile levels/libfftpack/Makefile])
+AC_CONFIG_FILES([Makefile data/Makefile src/Makefile levels/Makefile levels/cxxsupport/Makefile levels/c_utils/Makefile levels/libfftpack/Makefile])
 
 # Ensure the necessary compilers work. Libconviqt is an MPI C++ code
 AC_PROG_CC_C99
