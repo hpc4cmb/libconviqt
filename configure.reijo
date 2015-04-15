@@ -1,0 +1,19 @@
+#!/bin/bash
+
+CC="${HPCP_CC}" \
+    CXX="${HPCP_CXX}" \
+    MPICC="${HPCP_MPICC}" \
+    MPICXX="${HPCP_MPICXX}" \
+    OPENMP_CFLAGS="${HPCP_OMPFLAGS}" \
+    OPENMP_CXXFLAGS="${HPCP_OMPFLAGS}" \
+    CFLAGS="${HPCP_CFLAGS}" \
+    CXXFLAGS="${HPCP_CXXFLAGS}" \
+    LDFLAGS="-L${boost_PREFIX}/lib ${HPCP_LDFLAGS}" \
+    LIBTOOLFLAGS="${HPCP_LIBTOOLFLAGS}" \
+    LIBS="${HPCP_LIBS}" \
+    ./configure --prefix=$PWD \
+    --with-cfitsio="/project/projectdirs/planck/software/keskital/carver/cfitsio3360"
+
+#    --with-healpix_cxx="/project/projectdirs/planck/software/keskital/carver/Healpix_3.11/src/cxx/basic_gcc"
+#    --with-cfitsio="${cfitsio_PREFIX}" \
+#    --with-healpix_cxx="${healpix_PREFIX}"

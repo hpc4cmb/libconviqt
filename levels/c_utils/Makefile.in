@@ -15,7 +15,6 @@
 @SET_MAKE@
 
 
-
 VPATH = @srcdir@
 am__is_gnu_make = { \
   if test -z '$(MAKELEVEL)'; then \
@@ -90,8 +89,7 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
-noinst_PROGRAMS = ffttest$(EXEEXT)
-subdir = levels/libfftpack
+subdir = levels/c_utils
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/m4/acx_cfitsio.m4 \
 	$(top_srcdir)/m4/acx_mpi.m4 \
@@ -108,18 +106,14 @@ CONFIG_HEADER = $(top_builddir)/config.h
 CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 LTLIBRARIES = $(noinst_LTLIBRARIES)
-libfftpack_la_LIBADD =
-am_libfftpack_la_OBJECTS = bluestein.lo fftpack.lo ls_fft.lo
-libfftpack_la_OBJECTS = $(am_libfftpack_la_OBJECTS)
+libc_utils_la_LIBADD =
+am_libc_utils_la_OBJECTS = c_utils.lo memusage.lo svd_c.lo \
+	time_utils.lo walltime_c.lo wrec3a.lo
+libc_utils_la_OBJECTS = $(am_libc_utils_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
 am__v_lt_0 = --silent
 am__v_lt_1 = 
-PROGRAMS = $(noinst_PROGRAMS)
-am_ffttest_OBJECTS = ffttest.$(OBJEXT)
-ffttest_OBJECTS = $(am_ffttest_OBJECTS)
-ffttest_DEPENDENCIES = libfftpack.la \
-	$(top_builddir)/levels/c_utils/libc_utils.la
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
 am__v_P_0 = false
@@ -154,8 +148,8 @@ AM_V_CCLD = $(am__v_CCLD_@AM_V@)
 am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
 am__v_CCLD_0 = @echo "  CCLD    " $@;
 am__v_CCLD_1 = 
-SOURCES = $(libfftpack_la_SOURCES) $(ffttest_SOURCES)
-DIST_SOURCES = $(libfftpack_la_SOURCES) $(ffttest_SOURCES)
+SOURCES = $(libc_utils_la_SOURCES)
+DIST_SOURCES = $(libc_utils_la_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -181,7 +175,7 @@ am__define_uniq_tagged_files = \
   done | $(am__uniquify_input)`
 ETAGS = etags
 CTAGS = ctags
-am__DIST_COMMON = $(srcdir)/Makefile.in $(top_srcdir)/depcomp README
+am__DIST_COMMON = $(srcdir)/Makefile.in $(top_srcdir)/depcomp
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 ACLOCAL = @ACLOCAL@
 AMTAR = @AMTAR@
@@ -308,13 +302,11 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-AM_CPPFLAGS = -I$(top_srcdir)/levels/c_utils
-noinst_HEADERS = bluestein.h fftpack.h ls_fft.h
-EXTRA_DIST = fftpack_inc.c
-noinst_LTLIBRARIES = libfftpack.la
-libfftpack_la_SOURCES = bluestein.c bluestein.h fftpack.c fftpack.h ls_fft.c ls_fft.h
-ffttest_SOURCES = ffttest.c
-ffttest_LDADD = libfftpack.la $(top_builddir)/levels/c_utils/libc_utils.la $(LDADD)
+AM_CPPFLAGS = $(CFITSIO_CPPFLAGS)
+LDADD = $(CFITSIO)
+noinst_HEADERS = c_utils.h memusage.h sse_utils.h svd_c.c svd_c.h time_utils.h walltime_c.h wrec3a.h
+noinst_LTLIBRARIES = libc_utils.la
+libc_utils_la_SOURCES = c_utils.c c_utils.h memusage.c memusage.h sse_utils.h svd_c.c svd_c.h time_utils.c time_utils.h walltime_c.c walltime_c.h wrec3a.c wrec3a.h
 all: all-am
 
 .SUFFIXES:
@@ -328,9 +320,9 @@ $(srcdir)/Makefile.in:  $(srcdir)/Makefile.am  $(am__configure_deps)
 	      exit 1;; \
 	  esac; \
 	done; \
-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign levels/libfftpack/Makefile'; \
+	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign levels/c_utils/Makefile'; \
 	$(am__cd) $(top_srcdir) && \
-	  $(AUTOMAKE) --foreign levels/libfftpack/Makefile
+	  $(AUTOMAKE) --foreign levels/c_utils/Makefile
 Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	@case '$?' in \
 	  *config.status*) \
@@ -360,21 +352,8 @@ clean-noinstLTLIBRARIES:
 	  rm -f $${locs}; \
 	}
 
-libfftpack.la: $(libfftpack_la_OBJECTS) $(libfftpack_la_DEPENDENCIES) $(EXTRA_libfftpack_la_DEPENDENCIES) 
-	$(AM_V_CCLD)$(LINK)  $(libfftpack_la_OBJECTS) $(libfftpack_la_LIBADD) $(LIBS)
-
-clean-noinstPROGRAMS:
-	@list='$(noinst_PROGRAMS)'; test -n "$$list" || exit 0; \
-	echo " rm -f" $$list; \
-	rm -f $$list || exit $$?; \
-	test -n "$(EXEEXT)" || exit 0; \
-	list=`for p in $$list; do echo "$$p"; done | sed 's/$(EXEEXT)$$//'`; \
-	echo " rm -f" $$list; \
-	rm -f $$list
-
-ffttest$(EXEEXT): $(ffttest_OBJECTS) $(ffttest_DEPENDENCIES) $(EXTRA_ffttest_DEPENDENCIES) 
-	@rm -f ffttest$(EXEEXT)
-	$(AM_V_CCLD)$(LINK) $(ffttest_OBJECTS) $(ffttest_LDADD) $(LIBS)
+libc_utils.la: $(libc_utils_la_OBJECTS) $(libc_utils_la_DEPENDENCIES) $(EXTRA_libc_utils_la_DEPENDENCIES) 
+	$(AM_V_CCLD)$(LINK)  $(libc_utils_la_OBJECTS) $(libc_utils_la_LIBADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -382,10 +361,12 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/bluestein.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fftpack.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ffttest.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ls_fft.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/c_utils.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/memusage.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/svd_c.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/time_utils.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/walltime_c.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/wrec3a.Plo@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
@@ -498,7 +479,7 @@ distdir: $(DISTFILES)
 	done
 check-am: all-am
 check: check-am
-all-am: Makefile $(LTLIBRARIES) $(PROGRAMS) $(HEADERS)
+all-am: Makefile $(LTLIBRARIES) $(HEADERS)
 installdirs:
 install: install-am
 install-exec: install-exec-am
@@ -533,7 +514,7 @@ maintainer-clean-generic:
 clean: clean-am
 
 clean-am: clean-generic clean-libtool clean-noinstLTLIBRARIES \
-	clean-noinstPROGRAMS mostlyclean-am
+	mostlyclean-am
 
 distclean: distclean-am
 	-rm -rf ./$(DEPDIR)
@@ -604,15 +585,15 @@ uninstall-am:
 .MAKE: install-am install-strip
 
 .PHONY: CTAGS GTAGS TAGS all all-am check check-am clean clean-generic \
-	clean-libtool clean-noinstLTLIBRARIES clean-noinstPROGRAMS \
-	cscopelist-am ctags ctags-am distclean distclean-compile \
-	distclean-generic distclean-libtool distclean-tags distdir dvi \
-	dvi-am html html-am info info-am install install-am \
-	install-data install-data-am install-dvi install-dvi-am \
-	install-exec install-exec-am install-html install-html-am \
-	install-info install-info-am install-man install-pdf \
-	install-pdf-am install-ps install-ps-am install-strip \
-	installcheck installcheck-am installdirs maintainer-clean \
+	clean-libtool clean-noinstLTLIBRARIES cscopelist-am ctags \
+	ctags-am distclean distclean-compile distclean-generic \
+	distclean-libtool distclean-tags distdir dvi dvi-am html \
+	html-am info info-am install install-am install-data \
+	install-data-am install-dvi install-dvi-am install-exec \
+	install-exec-am install-html install-html-am install-info \
+	install-info-am install-man install-pdf install-pdf-am \
+	install-ps install-ps-am install-strip installcheck \
+	installcheck-am installdirs maintainer-clean \
 	maintainer-clean-generic mostlyclean mostlyclean-compile \
 	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
 	tags tags-am uninstall uninstall-am

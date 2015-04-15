@@ -4,6 +4,8 @@
 
 // An end user will have the choice between using these facilities or providing inputs directly
 
+using namespace levels;
+
 int beam::read( long beamlmax, long beammmax, bool beampol, std::string infile_beam, MPI_Comm comm ) {
 
   MPI_Manager mpiMgr( comm );

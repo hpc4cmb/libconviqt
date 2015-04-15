@@ -9,12 +9,12 @@
 #include <utility> // std::swap
 
 // Healpix headers
-#include <alm.h>
-#include "alm_fitsio.h"
-#include "alm_powspec_tools.h"
+#include "ls_alm.h"
+#include "ls_alm_fitsio.h"
+#include "ls_alm_powspec_tools.h"
 
 // LevelS cxxsupport and c_utils headers
-#include "lsconstants.h"
+#include "ls_constants.h"
 #include "ls_arr.h"
 #include "ls_mpi_support.h"
 #include "ls_wigner.h"
@@ -29,6 +29,8 @@
 // The declarations go here
 
 #define __CONVIQT_HPP__
+
+using namespace levels;
 
 class beam {
 public :

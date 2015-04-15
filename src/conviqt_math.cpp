@@ -362,14 +362,14 @@ void convolver::interpolTOD_arrTestcm_pol_fill( levels::arr<double> &outpntarr1,
     {
       if ( CMULT_VERBOSITY > 1 )
 	std::cout << "itheta0[ntod-1] = " << itheta0[ntod-1] << "   itheta0_2[ntod2-1] = " << itheta0_2[ntod2-1] << "   itheta0[0] = " << itheta0[0] << "   itheta0_2[0] = " << itheta0_2[0] << std::endl;
-      planck_fail("itheta0[ntod-1] != itheta0_2[ntod2-1]");
+      throw std::runtime_error("itheta0[ntod-1] != itheta0_2[ntod2-1]");
     }
   
   if ( NThetaIndex1 != NThetaIndex2 )
     {
       if ( CMULT_VERBOSITY > 1 )
 	std::cout << "NThetaIndex1 = " << NThetaIndex1 << "   NThetaIndex2 = " << NThetaIndex2 << std::endl;
-      planck_fail("NThetaIndex1 not equal to NThetaIndex2");
+      throw std::runtime_error("NThetaIndex1 not equal to NThetaIndex2");
     }
 
   levels::arr<long> inNThetaIndex1(1);
@@ -679,7 +679,10 @@ void convolver::todgen_fill( long ntod, long ntod2, levels::arr<double> &todTest
   todTest_arr2.fill(0);
   //long offindex;
 
-  if (ntod == 0 || ntod2 == 0) { if ( CMULT_VERBOSITY > 1 ) std::cout << "ntod = " << ntod << "  ntod2 = " << ntod2 << "   corenum = " << corenum << std::endl; planck_fail("ntod or ntod2 is zero"); }
+  if (ntod == 0 || ntod2 == 0) {
+    if ( CMULT_VERBOSITY > 1 ) std::cout << "ntod = " << ntod << "  ntod2 = " << ntod2 << "   corenum = " << corenum << std::endl;
+    throw std::runtime_error("ntod or ntod2 is zero");
+  }
   interpolTOD_arrTestcm_pol_fill ( outpntarr1, outpntarr2, todTest_arr, todTest_arr2, ntod, ntod2, corenum, cores, betaIni_arr, NThetaIndex1, lowerIndex, upperIndex, lowerIndex2, upperIndex2, iphi0arr, sinweight, cosweight, iphi0arr2, sinweight2, cosweight2, effM, dp1 );
 }
 

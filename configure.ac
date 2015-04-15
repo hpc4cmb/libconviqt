@@ -8,7 +8,7 @@ AM_INIT_AUTOMAKE([foreign -Wall -Werror])
 AC_CONFIG_SRCDIR([src/conviqt.hpp])
 
 AC_CONFIG_HEADERS([config.h])
-AC_CONFIG_FILES([Makefile src/Makefile levels/Makefile levels/cxxsupport/Makefile levels/c_utils/Makefile levels/libfftpack/Makefile])
+AC_CONFIG_FILES([Makefile src/Makefile levels/Makefile levels/cxxsupport/Makefile levels/c_utils/Makefile levels/libfftpack/Makefile levels/Healpix_cxx/Makefile])
 
 # Ensure the necessary compilers work. Libconviqt is an MPI C++ code
 AC_PROG_CC_C99
@@ -32,7 +32,7 @@ AC_REQUIRE_CPP
 
 # We need cfitsio and Healpix
 ACX_CFITSIO([], [AC_MSG_ERROR([Could not find the CFITSIO library!])])
-ACX_HEALPIX_CXX([], [AC_MSG_ERROR([could not find the Healpix C++ library])])
+#ACX_HEALPIX_CXX([], [AC_MSG_ERROR([could not find the Healpix C++ library])])
 
 # We use libtool to build the libraries
 AM_PROG_AR
@@ -55,8 +55,8 @@ AC_MSG_NOTICE([  C++ Compile Flags         : $CXXFLAGS])
 #fi
 AC_MSG_NOTICE([  CFITSIO Compile           : $CFITSIO_CPPFLAGS])
 AC_MSG_NOTICE([  CFITSIO Link              : $CFITSIO])
-AC_MSG_NOTICE([  Healpix C++ Compile       : $HEALPIX_CXX_CPPFLAGS])
-AC_MSG_NOTICE([  Healpix C++ Link          : $HEALPIX_CXX])
+#AC_MSG_NOTICE([  Healpix C++ Compile       : $HEALPIX_CXX_CPPFLAGS])
+#AC_MSG_NOTICE([  Healpix C++ Link          : $HEALPIX_CXX])
 
 AC_OUTPUT
 
