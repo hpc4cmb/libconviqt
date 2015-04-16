@@ -74,7 +74,6 @@ alm_fitsio.lo: alm_fitsio.cc \
  /global/common/carver_sl6/usg/gcc/4.8.3/include/c++/4.8.3/cstdio \
  /usr/include/libio.h /usr/include/_G_config.h \
  /usr/include/bits/stdio_lim.h /usr/include/bits/sys_errlist.h \
- /usr/include/bits/stdio.h \
  /global/common/carver_sl6/usg/gcc/4.8.3/include/c++/4.8.3/cerrno \
  /usr/include/errno.h /usr/include/bits/errno.h \
  /usr/include/linux/errno.h /usr/include/asm/errno.h \
@@ -109,7 +108,6 @@ alm_fitsio.lo: alm_fitsio.cc \
  /usr/include/bits/huge_valf.h /usr/include/bits/huge_vall.h \
  /usr/include/bits/inf.h /usr/include/bits/nan.h \
  /usr/include/bits/mathdef.h /usr/include/bits/mathcalls.h \
- /usr/include/bits/mathinline.h \
  /global/common/carver_sl6/usg/gcc/4.8.3/include/c++/4.8.3/sstream \
  /global/common/carver_sl6/usg/gcc/4.8.3/include/c++/4.8.3/bits/sstream.tcc \
  ../../levels/cxxsupport/ls_datatypes.h \
@@ -346,8 +344,6 @@ alm_fitsio.lo: alm_fitsio.cc \
 
 /usr/include/bits/sys_errlist.h:
 
-/usr/include/bits/stdio.h:
-
 /global/common/carver_sl6/usg/gcc/4.8.3/include/c++/4.8.3/cerrno:
 
 /usr/include/errno.h:
@@ -431,8 +427,6 @@ ls_alm_fitsio.h:
 /usr/include/bits/mathdef.h:
 
 /usr/include/bits/mathcalls.h:
-
-/usr/include/bits/mathinline.h:
 
 /global/common/carver_sl6/usg/gcc/4.8.3/include/c++/4.8.3/sstream:
 

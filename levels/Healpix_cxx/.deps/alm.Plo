@@ -55,13 +55,11 @@ alm.lo: alm.cc ls_alm.h ../../levels/cxxsupport/ls_arr.h \
  /usr/include/bits/huge_valf.h /usr/include/bits/huge_vall.h \
  /usr/include/bits/inf.h /usr/include/bits/nan.h \
  /usr/include/bits/mathdef.h /usr/include/bits/mathcalls.h \
- /usr/include/bits/mathinline.h \
  /global/common/carver_sl6/usg/gcc/4.8.3/include/c++/4.8.3/cstdio \
  /usr/include/stdio.h /usr/include/libio.h /usr/include/_G_config.h \
  /usr/include/wchar.h \
  /global/common/carver_sl6/usg/gcc/4.8.3/lib/gcc/x86_64-unknown-linux-gnu/4.8.3/include/stdarg.h \
  /usr/include/bits/stdio_lim.h /usr/include/bits/sys_errlist.h \
- /usr/include/bits/stdio.h \
  /global/common/carver_sl6/usg/gcc/4.8.3/include/c++/4.8.3/string \
  /global/common/carver_sl6/usg/gcc/4.8.3/include/c++/4.8.3/bits/stringfwd.h \
  /global/common/carver_sl6/usg/gcc/4.8.3/include/c++/4.8.3/bits/char_traits.h \
@@ -297,8 +295,6 @@ ls_alm.h:
 
 /usr/include/bits/mathcalls.h:
 
-/usr/include/bits/mathinline.h:
-
 /global/common/carver_sl6/usg/gcc/4.8.3/include/c++/4.8.3/cstdio:
 
 /usr/include/stdio.h:
@@ -314,8 +310,6 @@ ls_alm.h:
 /usr/include/bits/stdio_lim.h:
 
 /usr/include/bits/sys_errlist.h:
-
-/usr/include/bits/stdio.h:
 
 /global/common/carver_sl6/usg/gcc/4.8.3/include/c++/4.8.3/string:
 

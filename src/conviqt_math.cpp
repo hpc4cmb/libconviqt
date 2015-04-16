@@ -2,6 +2,8 @@
 
 // This file will contain the actual operations on the sky, no I/O
 
+namespace conviqt {
+
 convolver::convolver( sky *s, beam *b, detector *d, bool pol, long lmax, long beammmax, long Nbetafac, long MCSamples, long lmaxOut, long order, MPI_Comm comm ) : s(s), b(b), d(d), pol(pol), lmax(lmax), beammmax(beammmax), Nbetafac(Nbetafac), MCSamples(MCSamples), lmaxOut(lmaxOut), order(order) {
   mpiMgr = MPI_Manager( comm );
 }
@@ -336,7 +338,7 @@ void convolver::ithetacalc( levels::arr<long> &itheta0, levels::arr<double> &out
 
 void convolver::interpolTOD_arrTestcm_pol_fill( levels::arr<double> &outpntarr1, levels::arr<double> &outpntarr2, levels::arr<double> &TODValue, levels::arr<double> &TODValue2, long ntod, long ntod2, int corenum, int cores, levels::arr<double> &betaIni_arr, long &NThetaIndex1, levels::arr<long> &lowerIndex, levels::arr<long> &upperIndex, levels::arr<long> &lowerIndex2, levels::arr<long> &upperIndex2, levels::arr<int> &iphi0arr, levels::arr2<double> &sinweight, levels::arr2<double> &cosweight, levels::arr<int> &iphi0arr2, levels::arr2<double> &sinweight2, levels::arr2<double> &cosweight2, levels::arr<long> &effM, levels::arr<double> &dp1 )
 {
-  if ( CMULT_VERBOSITY > 1 ) std::cout << "Entered interpolTOD_arrTestcm_pol_fill" << std::endl;
+  if ( CMULT_VERBOSITY > 1 ) std::cout << "Entered interpolTOD_arrTestcm_pol_fill, lmaxOut = " << lmaxOut << std::endl;
   double phi0 = halfpi;
   //long npsi = 2*beammmax+1;
   long nphi = (2*lmaxOut+1);
@@ -441,7 +443,14 @@ void convolver::interpolTOD_arrTestcm_pol_fill( levels::arr<double> &outpntarr1,
 	  break;
 	} // this yields the smallest ii where itheta0_2[ii]<=itheta0_2[ntod-1]+jj
 
-  levels::arr2<xcomplex<double> > TODAsym(nphi,beammmax+1,0.), TODAsym2(nphi,beammmax+1,0.);
+  levels::arr2<xcomplex<double> > TODAsym, TODAsym2;
+  try { 
+    TODAsym.allocAndFill(nphi,beammmax+1,0.);
+    TODAsym2.allocAndFill(nphi,beammmax+1,0.);
+  } catch ( std::bad_alloc & e ) {
+    std::cerr << "interpolTOD_arrTestcm_pol_fill : Out of memory allocating " << 2*nphi*(beammmax+1)*16./1024/1024 << "MB for TODAsym" << std::endl;
+    throw;
+  }
 
   double elapsed_secs=0.;
   betaIni_arr.alloc(NThetaIndex1);
@@ -502,7 +511,15 @@ void convolver::interpolTOD_arrTestcm_pol_fast( levels::arr<double> &TODValue, l
   long nphi = (2*lmaxOut + 1);
   int npoints = order + 1;
 
-  levels::arr2<xcomplex<double> > TODAsym(nphi,beammmax+1,0.), TODAsym2(nphi,beammmax+1,0.);
+  levels::arr2<xcomplex<double> > TODAsym, TODAsym2;
+  try { 
+    TODAsym.allocAndFill(nphi,beammmax+1,0.);
+    TODAsym2.allocAndFill(nphi,beammmax+1,0.);
+  } catch ( std::bad_alloc & e ) {
+    std::cerr << "interpolTOD_arrTestcm_pol_fast : Out of memory allocating " << 2*nphi*(beammmax+1)*16./1024/1024 << "MB for TODAsym" << std::endl;
+    throw;
+  }
+
   double elapsed_secs=0.;
   long countdlm=0;
   for (int thetaIndex=0; thetaIndex<NThetaIndex1; ++thetaIndex)
@@ -1362,7 +1379,13 @@ void convolver::conviqt_tod_loop_v4(levels::arr<long> &lowerIndex, levels::arr<l
 
 void convolver::conviqt_tod_loop_pol_v5(levels::arr<long> &lowerIndex, levels::arr<long> &upperIndex, levels::arr<double> &outpntarr, levels::arr3<xcomplex<double> > &TODAsym, long thetaIndex, levels::arr<long> &itheta0, long max_order, double inv_delta_theta, double theta0, double inv_delta_phi, double phioffset, long nphi, long ioffset, long npoints, long ntod, levels::arr<double> &TODValue, long lat)
 {
-  levels::arr2<xcomplex<double> > conviqtarr(nphi,beammmax+1);
+  levels::arr2<xcomplex<double> > conviqtarr;
+  try { 
+    conviqtarr.alloc(nphi,beammmax+1);
+  } catch ( std::bad_alloc & e ) {
+    std::cerr << "conviqt_tod_loop_pol_v5 : Out of memory allocating " << nphi*(beammmax+1)*16./1024/1024 << "MB for TODAsym" << std::endl;
+    throw;
+  }
 
   for (long ii=0; ii<nphi; ii++)
     for (long jj=0; jj<beammmax+1; jj++)
@@ -1537,7 +1560,7 @@ int convolver::convolve( pointing & pntarr, bool calibrate ) {
     }
 
   // Redistribute the data form pntarr2 to outpntarr
-  
+
   if ( totsize !=0 || outBetaSegSize != 0 ) mpiMgr.all2allv( pntarr2, inBetaSeg, inOffset, outpntarr, outBetaSeg, outOffset, outBetaSegSize );
   
   if ( totsize > 0 ) pntarr2.dealloc();
@@ -1777,3 +1800,5 @@ int convolver::convolve( pointing & pntarr, bool calibrate ) {
   
   return 0;
 }
+
+} // namespace conviqt

@@ -303,8 +303,13 @@ fitshandle::~fitshandle()
 void fitshandle::open (const string &fname)
   {
   clean_all();
-  fitsfile *ptr;
-  fits_open_file(&ptr, fname.c_str(), READONLY, &status);
+  fitsfile *ptr=NULL;
+  // Fixed a Valgrind error by using a fixed length char array for the file name
+  char fn[FLEN_FILENAME];
+  std::copy(fname.begin(), fname.end(), fn);
+  fn[ fname.length() ] = '\0';
+  //fits_open_file(&ptr, fname.c_str(), READONLY, &status);
+  fits_open_file(&ptr, fn, READONLY, &status);
   fptr=ptr;
   check_errors();
   init_data();

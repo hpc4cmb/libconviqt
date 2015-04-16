@@ -1,5 +1,4 @@
 AM_CPPFLAGS = $(CFITSIO_CPPFLAGS)
-LDADD = $(CFITSIO)
 
 noinst_HEADERS = c_utils.h memusage.h sse_utils.h svd_c.c svd_c.h time_utils.h walltime_c.h wrec3a.h
 

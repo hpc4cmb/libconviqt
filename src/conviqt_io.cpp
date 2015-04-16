@@ -6,6 +6,8 @@
 
 using namespace levels;
 
+namespace conviqt {
+
 int beam::read( long beamlmax, long beammmax, bool beampol, std::string infile_beam, MPI_Comm comm ) {
 
   MPI_Manager mpiMgr( comm );
@@ -113,3 +115,4 @@ Alm< xcomplex<float> > & sky::slmC( void ) {
   return slmC_;
 }
 
+} // namespace conviqt

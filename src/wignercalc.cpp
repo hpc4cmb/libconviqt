@@ -1,5 +1,7 @@
 #include "conviqt.hpp"
 
+namespace conviqt {
+
 double wigner_xpow (int expo, double val)
   { return (expo&1) ? -val : val; }
 
@@ -269,3 +271,5 @@ void wignerCalc( tsize n, tsize mmax, double theta, levels::arr2<double> &d )
     }
   wignerCalcGeneral( n, mmax, theta, d );
 }
+
+} // namespace conviqt

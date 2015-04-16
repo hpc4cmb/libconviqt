@@ -1,5 +1,7 @@
 #include "conviqt.hpp"
 
+namespace conviqt {
+
 void sift_down_DL( levels::arr<double> &ra, levels::arr<long> &brr, const int l, const int r ) //FROM P-340 OF NR
 {
   int j, jold;
@@ -233,3 +235,4 @@ void hpsort_DDcm( levels::arr<double> &ra, levels::arr<double> &brr ) //FROM P-3
     }
 }
 
+} // namespace conviqt

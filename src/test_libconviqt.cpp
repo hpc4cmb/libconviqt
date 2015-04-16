@@ -9,9 +9,12 @@
 //#endif
 
 #include <iostream>
+#include <iomanip>
 #include <exception>
 
 #include "conviqt.hpp"
+
+using namespace conviqt;
 
 int main( int argc, char **argv ) {
 
@@ -26,6 +29,8 @@ int main( int argc, char **argv ) {
   int ntasks=0, rank=0;
   if ( MPI_Comm_size( comm, &ntasks ) ) throw std::runtime_error( "ERROR: Failed get MPI communicator size" );
   if ( MPI_Comm_rank( comm, &rank ) ) throw std::runtime_error( "ERROR: Failed to get MPI rank" );
+
+  std::cout << std::setprecision( 16 );
 
   beam b;
   sky s;
@@ -90,13 +95,13 @@ int main( int argc, char **argv ) {
       }
 
       if ( pol ) {
-	if ( fabs( pnt[ 0*5+3] -  0.854635 ) > 1e-6 ) throw std::runtime_error( "Row 0 should be 0.854635, not "  + std::to_string(pnt[ 0*5+3]) );
-	if ( fabs( pnt[10*5+3] + 25.5373   ) > 1e-4 ) throw std::runtime_error( "Row 10 should be -25.5373, not " + std::to_string(pnt[10*5+3]) );
-	if ( fabs( pnt[15*5+3] + 76.0495   ) > 1e-4 ) throw std::runtime_error( "Row 15 should be -76.0495, not " + std::to_string(pnt[15*5+3]) );
+	if ( fabs( pnt[ 0*5+3] -  0.8546349819096275 ) > 1e-6 ) throw std::runtime_error( "Row 0 should be 0.8546349819096275, not "  + std::to_string(pnt[ 0*5+3]) );
+	if ( fabs( pnt[10*5+3] + 25.53734467183137   ) > 1e-4 ) throw std::runtime_error( "Row 10 should be -25.53734467183137, not " + std::to_string(pnt[10*5+3]) );
+	if ( fabs( pnt[15*5+3] + 76.04945574990082   ) > 1e-4 ) throw std::runtime_error( "Row 15 should be -76.04945574990082, not " + std::to_string(pnt[15*5+3]) );
       } else {
-	if ( fabs( pnt[ 0*5+3] -  0.854585 ) > 1e-6 ) throw std::runtime_error( "Row 0 should be 0.854585, not "  + std::to_string(pnt[ 0*5+3]) );
-	if ( fabs( pnt[10*5+3] + 25.2015   ) > 1e-4 ) throw std::runtime_error( "Row 10 should be -25.2015, not " + std::to_string(pnt[10*5+3]) );
-	if ( fabs( pnt[15*5+3] + 76.1472   ) > 1e-4 ) throw std::runtime_error( "Row 15 should be -76.1472, not " + std::to_string(pnt[15*5+3]) );
+	if ( fabs( pnt[ 0*5+3] -  0.8545846415739397 ) > 1e-6 ) throw std::runtime_error( "Row 0 should be 0.8545846415739397, not "  + std::to_string(pnt[ 0*5+3]) );
+	if ( fabs( pnt[10*5+3] + 25.20150061107036   ) > 1e-4 ) throw std::runtime_error( "Row 10 should be -25.20150061107036, not " + std::to_string(pnt[10*5+3]) );
+	if ( fabs( pnt[15*5+3] + 76.14723911261254   ) > 1e-4 ) throw std::runtime_error( "Row 15 should be -76.14723911261254, not " + std::to_string(pnt[15*5+3]) );
       }
     
     }

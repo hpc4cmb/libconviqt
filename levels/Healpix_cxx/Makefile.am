@@ -1,5 +1,4 @@
 AM_CPPFLAGS = $(CFITSIO_CPPFLAGS) -I$(top_srcdir)/levels/c_utils -I$(top_srcdir)/levels/cxxsupport
-LDADD = $(CFITSIO)
 
 noinst_HEADERS = ls_alm.h ls_alm_fitsio.h ls_alm_powspec_tools.h ls_powspec.h
 

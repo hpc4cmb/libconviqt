@@ -2,7 +2,7 @@
 
 // Include the autotools-provided configuration macros
 #ifdef HAVE_CONFIG_H
-#include"config.h"
+#include "config.h"
 #endif
 
 #include <new> // std::bad_alloc
@@ -31,6 +31,8 @@
 #define __CONVIQT_HPP__
 
 using namespace levels;
+
+namespace conviqt {
 
 class beam {
 public :
@@ -186,5 +188,7 @@ void sift_down_arrTime( levels::arr<double> &ra, const int l, const int r );
 void hpsort_arrTime( levels::arr<double> &ra );
 void sift_down_DDcm( levels::arr<double> &ra, levels::arr<double> &brr, const int l, const int r );
 void hpsort_DDcm( levels::arr<double> &ra, levels::arr<double> &brr );
+
+} // namespace conviqt
 
 #endif

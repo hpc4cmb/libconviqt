@@ -15,6 +15,9 @@ AC_PROG_CC_C99
 AC_LANG_PUSH([C])
 AC_OPENMP
 
+ACX_MPI([], [AC_MSG_ERROR([No C MPI compiler available!])])
+CC=$MPICC
+
 AC_PROG_CXX
 AC_LANG_PUSH([C++])
 AX_CXX_COMPILE_STDCXX_11
@@ -24,7 +27,7 @@ CPPFLAGS="$CPPFLAGS $OPENMP_CFLAGS"
 CFLAGS="$CFLAGS $OPENMP_CFLAGS"
 CXXFLAGS="$CXXFLAGS $OPENMP_CXXFLAGS"
 
-ACX_MPI([], [AC_MSG_ERROR([No MPI compiler available!])])
+#ACX_MPI([], [AC_MSG_ERROR([No C++ MPI compiler available!])])
 CXX=$MPICXX
 AC_DEFINE([USE_MPI],[1],[Tell LevelS mpi_wrappers to use MPI])
 
