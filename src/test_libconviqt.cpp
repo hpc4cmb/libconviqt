@@ -18,10 +18,14 @@ int main( int argc, char **argv ) {
 
   MPI_Comm comm = MPI_COMM_WORLD;
 
+  std::cout << "Checking that MPI is not yet initialized." << std::endl;
+
   int flag;
   MPI_Initialized( &flag );
   if ( flag ) throw std::runtime_error( "ERROR: MPI was already initialized" );
   
+  std::cout << "Initializing MPI" << std::endl;
+
   if ( MPI_Init( &argc, &argv ) ) throw std::runtime_error( "ERROR: Failed to initialize MPI" );
 
   int ntasks=0, rank=0;
@@ -39,6 +43,8 @@ int main( int argc, char **argv ) {
 
   for ( int ipol=0; ipol<2; ++ipol ) {
     
+    std::cout << "Generating inputs, ipol = " << ipol << std::endl;
+
     long lmax=32; // default 5000
     long beamlmax=lmax;
     long beammmax=4; // default 14;
@@ -81,7 +87,11 @@ int main( int argc, char **argv ) {
     long lmaxOut=32; // 3000
     long order=3; // 5
     
+    std::cout << "Instantiating convolver." << std::endl;
+    
     convolver cnv( &s, &b, &d, pol, lmax, beammmax, Nbetafac, MCSamples, lmaxOut, order, comm );
+
+    std::cout << "Convolving." << std::endl;
 
     cnv.convolve( pnt );
 
@@ -126,11 +136,13 @@ int main( int argc, char **argv ) {
         }
       }
     
+      std::cout << "Test passed." << std::endl;
+      
     }
     
   } // ipol loop
 
-  if ( MPI_Finalize() ) throw std::runtime_error( "ERROR: Failed finalize MPI" );
+  if ( MPI_Finalize() ) throw std::runtime_error( "ERROR: Failed to finalize MPI" );
 
   return 0;
 }
