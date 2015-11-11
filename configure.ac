@@ -1,65 +1,93 @@
-AC_INIT([libconviqt], [0.1], [bug-report@address])
-
+dnl
+dnl This is the Autoconf file for libconviqt
+dnl
+dnl +------------------------
+dnl | Initialize package info
+dnl +------------------------
+AC_INIT([libconviqt], [0.1], [work@theodorekisner.com])
+AC_CONFIG_SRCDIR([Makefile.am])
+AM_INIT_AUTOMAKE([foreign])
+AC_CONFIG_HEADERS(config.h)
 AC_CONFIG_MACRO_DIR([m4])
 
-AM_INIT_AUTOMAKE([foreign -Wall -Werror])
+dnl +-------------------------
+dnl | If the library source code has changed at all since the last update, 
+dnl | then increment revision (c:r:a becomes c:r+1:a).  If any interfaces 
+dnl | have been added, removed, or changed since the last update, increment
+dnl | current, and set revision to 0.  If any interfaces have been added 
+dnl | since the last public release, then increment age.  If any interfaces 
+dnl | have been removed since the last public release, then set age to 0.
+dnl +-------------------------
+LIBCONVIQT_LT_VERSION="1:0:0"
+AC_SUBST(LIBCONVIQT_LT_VERSION)
 
-# Ensure we are in the right directory
-AC_CONFIG_SRCDIR([src/conviqt.hpp])
-
-AC_CONFIG_HEADERS([config.h])
-AC_CONFIG_FILES([Makefile src/Makefile levels/Makefile levels/cxxsupport/Makefile levels/c_utils/Makefile levels/libfftpack/Makefile levels/Healpix_cxx/Makefile])
-
-# Ensure the necessary compilers work. Libconviqt is an MPI C++ code
-AC_PROG_CC_C99
-AC_LANG_PUSH([C])
-AC_OPENMP
-
-ACX_MPI([], [AC_MSG_ERROR([No C MPI compiler available!])])
-CC=$MPICC
-
-AC_PROG_CXX
-AC_LANG_PUSH([C++])
-AX_CXX_COMPILE_STDCXX_11
-AC_OPENMP
-
-CPPFLAGS="$CPPFLAGS $OPENMP_CFLAGS"
-CFLAGS="$CFLAGS $OPENMP_CFLAGS"
-CXXFLAGS="$CXXFLAGS $OPENMP_CXXFLAGS"
-
-#ACX_MPI([], [AC_MSG_ERROR([No C++ MPI compiler available!])])
-CXX=$MPICXX
-AC_DEFINE([USE_MPI],[1],[Tell LevelS mpi_wrappers to use MPI])
-
-AC_REQUIRE_CPP
-
-# We need cfitsio and Healpix
-ACX_CFITSIO([], [AC_MSG_ERROR([Could not find the CFITSIO library!])])
-#ACX_HEALPIX_CXX([], [AC_MSG_ERROR([could not find the Healpix C++ library])])
-
-# We use libtool to build the libraries
-AM_PROG_AR
+dnl +---------------------
+dnl | Compiler features
+dnl +---------------------
+dnl Set default optimization to '-O3' instead of the default '-g -O2'
+if test x"${CFLAGS}" = x; then
+   CFLAGS="-O3"
+fi
+if test x"${CXXFLAGS}" = x; then
+   CXXFLAGS="-O3"
+fi
+AC_CANONICAL_HOST
+AC_PROG_INSTALL
 LT_INIT
 
-# Let the user know the results of ./configure. These lines are copied from TOAST/configure.ac
+dnl +-------------------------
+dnl | C support
+dnl +-------------------------
+AC_PROG_CC
+
+dnl +-------------------------
+dnl | C++ support
+dnl +-------------------------
+AC_PROG_CXX
+
+dnl +------------------------------------------------
+dnl | Check for CFITSIO
+dnl +------------------------------------------------
+AC_LANG_PUSH([C])
+ACX_CFITSIO([], [AC_MSG_ERROR([Could not find the CFITSIO library!])])
+AC_LANG_POP([C])
+
+dnl +------------------------------------------------
+dnl | Check for MPI C and C++ compilers
+dnl +------------------------------------------------
+AC_LANG_PUSH([C])
+ACX_MPI([], [AC_MSG_ERROR([Cannot find MPI C compiler!])])
+AC_LANG_POP([C])
+ACX_MPI([], [AC_MSG_ERROR([Cannot find MPI C++ compiler!])])
+
+dnl +------------------------------------------------
+dnl | Set outputs
+dnl +------------------------------------------------
+AC_CONFIG_FILES([Makefile])
+AC_CONFIG_FILES([src/Makefile])
+AC_CONFIG_FILES([levels/Makefile])
+AC_CONFIG_FILES([levels/cxxsupport/Makefile])
+AC_CONFIG_FILES([levels/c_utils/Makefile])
+AC_CONFIG_FILES([levels/libfftpack/Makefile])
+AC_CONFIG_FILES([levels/Healpix_cxx/Makefile])
+
+dnl +------------------------------------------------
+dnl | Generate Makefiles
+dnl +------------------------------------------------
+AC_OUTPUT
+
+dnl +------------------------------------------------
+dnl | Print out detected build options
+dnl +------------------------------------------------
 AC_MSG_NOTICE([                                           ])
 AC_MSG_NOTICE([=========== Build Configuration ===========])
 AC_MSG_NOTICE([                                           ])
-AC_MSG_NOTICE([  C Compiler                : $CC])
-AC_MSG_NOTICE([  C Compile Flags           : $CFLAGS])
-#AC_MSG_NOTICE([  C OpenMP Flags            : $OPENMP_CFLAGS])
-AC_MSG_NOTICE([  C++ Compiler              : $CXX])
+AC_MSG_NOTICE([  Serial C++ Compiler       : $CXX])
 AC_MSG_NOTICE([  C++ Compile Flags         : $CXXFLAGS])
-#AC_MSG_NOTICE([  C++ OpenMP Flags          : $OPENMP_CXXFLAGS])
-#if test x"${MPICXX}" = x; then
-#AC_MSG_NOTICE([  MPI C++ Compiler          : Not found])
-#else
-#AC_MSG_NOTICE([  MPI C++ Compiler          : $MPICXX])
-#fi
+AC_MSG_NOTICE([  Serial C Compiler         : $CC])
+AC_MSG_NOTICE([  C Compile Flags           : $CFLAGS])
+AC_MSG_NOTICE([  MPI C++ Compiler          : $MPICXX])
+AC_MSG_NOTICE([  MPI C Compiler            : $MPICC])
 AC_MSG_NOTICE([  CFITSIO Compile           : $CFITSIO_CPPFLAGS])
 AC_MSG_NOTICE([  CFITSIO Link              : $CFITSIO])
-#AC_MSG_NOTICE([  Healpix C++ Compile       : $HEALPIX_CXX_CPPFLAGS])
-#AC_MSG_NOTICE([  Healpix C++ Link          : $HEALPIX_CXX])
-
-AC_OUTPUT
-
+AC_MSG_NOTICE([                                           ])
