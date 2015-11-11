@@ -40,15 +40,3 @@ Makefile.in
 *~
 *.o
 
-/docs/xml
-/docs/sphinx/build
-
-/src/libtidas/sqlite/tidas_sqlite
-
-/src/tests/tidas_test
-/src/tests/*.out
-/src/tests/test-suite.log
-/src/tests/tidas_test.log
-/src/tests/tidas_test.trs
-
-
