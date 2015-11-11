@@ -43,7 +43,7 @@
 #include "mpi.h"
 #else
 typedef int MPI_Comm;
-#define MPI_COMM_WORLD 0;
+#define MPI_COMM_WORLD 0
 #endif
 
 #include "ls_datatypes.h"

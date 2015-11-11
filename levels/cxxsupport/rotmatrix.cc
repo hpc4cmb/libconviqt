@@ -31,7 +31,7 @@
 
 #include <algorithm>
 #include "ls_rotmatrix.h"
-#include "lsconstants.h"
+#include "ls_constants.h"
 
 using namespace std;
 

@@ -30,7 +30,7 @@
  */
 
 #include "ls_powspec.h"
-#include "lsconstants.h"
+#include "ls_constants.h"
 
 using namespace std;
 

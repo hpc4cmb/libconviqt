@@ -5,6 +5,8 @@
 #include "config.h"
 #endif
 
+#include <mpi.h>
+
 #include <new> // std::bad_alloc
 #include <utility> // std::swap
 
@@ -54,7 +56,7 @@ public :
   Alm< xcomplex<float> > & slmG( void );
   Alm< xcomplex<float> > & slmC( void );
 private :
-  Alm<xcomplex<float>> slmT_, slmG_, slmC_;
+  Alm< xcomplex<float> > slmT_, slmG_, slmC_;
   long lmax;
   bool pol;
   double fwhm_deconv;

@@ -3,13 +3,10 @@
 #include "config.h"
 #endif
 
-// This is set in config.h
-//#ifdef HAVE_MPI
 #include "mpi.h"
-//#endif
 
-//#include <iostream>
-//#include <exception>
+#include <stdio.h>
+#include <string.h>
 #include <math.h>
 
 #include "cconviqt.h"

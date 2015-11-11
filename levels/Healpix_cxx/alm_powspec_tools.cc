@@ -38,7 +38,7 @@
 #include "ls_rotmatrix.h"
 #include "ls_openmp_support.h"
 #include "ls_wigner.h"
-#include "lsconstants.h"
+#include "ls_constants.h"
 
 using namespace std;
 

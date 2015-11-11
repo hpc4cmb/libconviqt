@@ -23,6 +23,9 @@ AM_LIBS += $(CFITSIO)
 # Always need libm
 AM_LIBS += -lm
 
+# Level-S source expects this macro for use with MPI:
+AM_CPPFLAGS += -DUSE_MPI
+
 
 include_HEADERS = \
     conviqt.hpp \
@@ -51,5 +54,9 @@ test_libconviqt_LDADD = libconviqt.la $(AM_LIBS)
 
 test_libcconviqt_SOURCES = test_libcconviqt.c
 test_libcconviqt_LDADD = libconviqt.la $(AM_LIBS)
+
+# force use of the C++ linker...
+nodist_EXTRA_test_libcconviqt_SOURCES = dummy.cpp
+
 
 TESTS = test_libconviqt test_libcconviqt test_libconviqt.py

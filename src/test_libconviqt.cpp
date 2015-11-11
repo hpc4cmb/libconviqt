@@ -3,14 +3,12 @@
 #include "config.h"
 #endif
 
-// This is set in config.h
-//#ifdef HAVE_MPI
 #include "mpi.h"
-//#endif
 
 #include <iostream>
 #include <iomanip>
 #include <exception>
+#include <sstream>
 
 #include "conviqt.hpp"
 
@@ -95,13 +93,37 @@ int main( int argc, char **argv ) {
       }
 
       if ( pol ) {
-	if ( fabs( pnt[ 0*5+3] -  0.8546349819096275 ) > 1e-6 ) throw std::runtime_error( "Row 0 should be 0.8546349819096275, not "  + std::to_string(pnt[ 0*5+3]) );
-	if ( fabs( pnt[10*5+3] + 25.53734467183137   ) > 1e-4 ) throw std::runtime_error( "Row 10 should be -25.53734467183137, not " + std::to_string(pnt[10*5+3]) );
-	if ( fabs( pnt[15*5+3] + 76.04945574990082   ) > 1e-4 ) throw std::runtime_error( "Row 15 should be -76.04945574990082, not " + std::to_string(pnt[15*5+3]) );
+      	if ( fabs( pnt[ 0*5+3] -  0.8546349819096275 ) > 1e-6 ) {
+          std::ostringstream o;
+          o << "Row 0 should be 0.8546349819096275, not " << pnt[0*5+3];
+          throw std::runtime_error( o.str() );
+        }
+      	if ( fabs( pnt[10*5+3] + 25.53734467183137   ) > 1e-4 ) {
+          std::ostringstream o;
+          o << "Row 10 should be -25.53734467183137, not " << pnt[10*5+3];
+          throw std::runtime_error( o.str() );
+        }
+      	if ( fabs( pnt[15*5+3] + 76.04945574990082   ) > 1e-4 ) {
+          std::ostringstream o;
+          o << "Row 15 should be -76.04945574990082, not " << pnt[15*5+3];
+          throw std::runtime_error( o.str() );
+        }
       } else {
-	if ( fabs( pnt[ 0*5+3] -  0.8545846415739397 ) > 1e-6 ) throw std::runtime_error( "Row 0 should be 0.8545846415739397, not "  + std::to_string(pnt[ 0*5+3]) );
-	if ( fabs( pnt[10*5+3] + 25.20150061107036   ) > 1e-4 ) throw std::runtime_error( "Row 10 should be -25.20150061107036, not " + std::to_string(pnt[10*5+3]) );
-	if ( fabs( pnt[15*5+3] + 76.14723911261254   ) > 1e-4 ) throw std::runtime_error( "Row 15 should be -76.14723911261254, not " + std::to_string(pnt[15*5+3]) );
+      	if ( fabs( pnt[ 0*5+3] -  0.8545846415739397 ) > 1e-6 ) {
+          std::ostringstream o;
+          o << "Row 0 should be 0.8545846415739397, not " << pnt[0*5+3];
+          throw std::runtime_error( o.str() );
+        }
+      	if ( fabs( pnt[10*5+3] + 25.20150061107036   ) > 1e-4 ) {
+          std::ostringstream o;
+          o << "Row 10 should be -25.20150061107036, not " << pnt[10*5+3];
+          throw std::runtime_error( o.str() );
+        }
+      	if ( fabs( pnt[15*5+3] + 76.14723911261254   ) > 1e-4 ) {
+          std::ostringstream o;
+          o << "Row 15 should be -76.14723911261254, not " << pnt[15*5+3];
+          throw std::runtime_error( o.str() );
+        }
       }
     
     }

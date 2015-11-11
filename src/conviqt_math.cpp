@@ -1,5 +1,7 @@
 #include "conviqt.hpp"
 
+#include <sstream>
+
 // This file will contain the actual operations on the sky, no I/O
 
 namespace conviqt {
@@ -663,7 +665,9 @@ void convolver::todRedistribution5cm ( levels::arr<double> pntarr, levels::arr<i
 	  double theta = pntarr[5*ii+1];
 	  if ( theta < 0 || theta > pi )
 	    {
-	      throw std::runtime_error( "ERROR: Illegal latitude in pntarr: theta = " + std::to_string(theta) + std::string(" not in 0..pi") );
+        std::ostringstream o;
+        o << "ERROR: Illegal latitude in pntarr: theta = " << theta << " not in 0..pi";
+	      throw std::runtime_error( o.str() );
 	    }
 	  if ( theta >= halfpi ) theta = pi - theta;
 	  ratiobeta = theta / ratiodeltas;
