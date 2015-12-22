@@ -1,0 +1,20 @@
+#!/bin/bash
+
+CC=gcc-mp-4.9 \
+  CXX=g++-mp-4.9 \
+  CPP="g++-mp-4.9 -E" \
+  MPICC=mpicc-openmpi-gcc49 \
+  MPICXX=mpicxx-openmpi-gcc49 \
+  OPENMP_CFLAGS="-fopenmp" \
+  OPENMP_CXXFLAGS="-fopenmp" \
+  CFLAGS="-g -O3 -fPIC" \
+  CXXFLAGS="-g -O3 -fPIC" \
+  LDFLAGS="-lm" \
+  LIBTOOLFLAGS="" \
+  LIBS="" \
+  ./configure --prefix=/Users/reijo/Software \
+  --with-cfitsio=/Users/reijo/Software/cfitsio/current
+
+#    --with-healpix_cxx="/project/projectdirs/planck/software/keskital/carver/Healpix_3.11/src/cxx/basic_gcc"
+#    --with-cfitsio="${cfitsio_PREFIX}" \
+#    --with-healpix_cxx="${healpix_PREFIX}"

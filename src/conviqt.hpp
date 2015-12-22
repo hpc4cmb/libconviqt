@@ -9,6 +9,7 @@
 
 #include <new> // std::bad_alloc
 #include <utility> // std::swap
+#include <stdexcept> //std::runtime_error
 
 // Healpix headers
 #include "ls_alm.h"
