@@ -16,10 +16,16 @@ ntask = comm.Get_size()
 
 if itask == 0: print 'Running with ', ntask, ' MPI tasks'
 
-libmpi = ctypes.CDLL( 'libmpi.so' )
-libcfitsio = ctypes.CDLL( 'libcfitsio.so' )
-#libconviqt = ctypes.CDLL( '../lib/libconviqt.so' )
-libconviqt = ctypes.CDLL( 'libconviqt.so' )
+#libmpi = ctypes.CDLL( 'libmpi.so' )
+#libmpi_cxx = ctypes.CDLL( 'libmpi_cxx.so' )
+#libcfitsio = ctypes.CDLL( 'libcfitsio.so' )
+try:
+    libconviqt = ctypes.CDLL( '.libs/libconviqt.so' )
+except:
+    try:
+        libconviqt = ctypes.CDLL( 'libconviqt.so' )
+    except Exception, e:
+        raise Exception('Unable to load libconviqt.so. You may need to install it first with "make install": {}'.format(e))
 
 lmax = 32
 beamlmax = lmax

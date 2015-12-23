@@ -44,7 +44,8 @@ libconviqt_la_LIBADD = \
     $(top_builddir)/levels/Healpix_cxx/libhealpix_cxx.la \
     $(top_builddir)/levels/cxxsupport/libls_cxxsupport.la \
     $(top_builddir)/levels/libfftpack/libfftpack.la \
-    $(top_builddir)/levels/c_utils/libc_utils.la
+    $(top_builddir)/levels/c_utils/libc_utils.la \
+    $(AM_LIBS)
 
 
 noinst_PROGRAMS = test_libconviqt test_libcconviqt

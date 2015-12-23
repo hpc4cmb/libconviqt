@@ -1,0 +1,15 @@
+#!/bin/bash
+
+CC="${HPCP_MPICC}" \
+    CXX="${HPCP_MPICXX}" \
+    MPICC="${HPCP_MPICC}" \
+    MPICXX="${HPCP_MPICXX}" \
+    OPENMP_CFLAGS="${HPCP_OMPFLAGS}" \
+    OPENMP_CXXFLAGS="${HPCP_OMPFLAGS}" \
+    CFLAGS="${HPCP_CFLAGS}" \
+    CXXFLAGS="${HPCP_CXXFLAGS}" \
+    LDFLAGS="-L${boost_PREFIX}/lib ${HPCP_LDFLAGS}" \
+    LIBTOOLFLAGS="${HPCP_LIBTOOLFLAGS}" \
+    LIBS="${HPCP_LIBS}" \
+    ./configure --prefix=/home/reijo/software \
+    --with-cfitsio="${cfitsio_PREFIX}"

@@ -117,7 +117,7 @@ int main( int argc, char **argv ) {
 
     printf( "Contents of pnt BEFORE convolving:\n" );
     for ( row=0; row<nsamp; ++row ) {
-      printf( "%i : %f %f %f %f %f\n", row, ppnt[row*5+0], ppnt[row*5+1], ppnt[row*5+2], ppnt[row*5+3], ppnt[row*5+4] );
+      printf( "%li : %f %f %f %f %f\n", row, ppnt[row*5+0], ppnt[row*5+1], ppnt[row*5+2], ppnt[row*5+3], ppnt[row*5+4] );
     }
     
     cnv = conviqt_convolver_new( sky, beam, det, pol, lmax, beammmax, Nbetafac, MCSamples, lmaxOut, order, &comm );
@@ -128,7 +128,7 @@ int main( int argc, char **argv ) {
 
     printf( "Contents of pnt AFTER convolving:\n" );
     for ( row=0; row<nsamp; ++row ) {
-      printf( "%i : %f %f %f %f %f\n", row, ppnt[row*5+0], ppnt[row*5+1], ppnt[row*5+2], ppnt[row*5+3], ppnt[row*5+4] );
+      printf( "%li : %f %f %f %f %f\n", row, ppnt[row*5+0], ppnt[row*5+1], ppnt[row*5+2], ppnt[row*5+3], ppnt[row*5+4] );
     }
     
     if ( rank == 0 ) {
