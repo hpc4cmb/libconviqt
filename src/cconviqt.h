@@ -14,7 +14,7 @@ extern "C" {
 
   int conviqt_beam_del( void *ptr );
 
-  int conviqt_beam_read( void *ptr, long beamlmax, long beammmax, char pol, char *infile_beam, MPI_Comm *comm );
+  int conviqt_beam_read( void *ptr, long beamlmax, long beammmax, char pol, char *infile_beam, MPI_Comm comm );
 
   // Sky
 
@@ -22,7 +22,7 @@ extern "C" {
 
   int conviqt_sky_del( void *ptr );
   
-  int conviqt_sky_read( void *ptr, long skylmax, char pol, char *infile_sky, double fwhm_deconv_sky, MPI_Comm *comm );
+  int conviqt_sky_read( void *ptr, long skylmax, char pol, char *infile_sky, double fwhm_deconv_sky, MPI_Comm comm );
 
   // Detector
 
@@ -50,7 +50,7 @@ extern "C" {
 
   // Convolver
 
-  void *conviqt_convolver_new( void *skyptr, void *beamptr, void *detptr, char pol, long lmax, long beammmax, long nbetafac, long mcsamples, long lmaxout, long order, MPI_Comm *comm );
+  void *conviqt_convolver_new( void *skyptr, void *beamptr, void *detptr, char pol, long lmax, long beammmax, long nbetafac, long mcsamples, long lmaxout, long order, MPI_Comm comm );
 
   int conviqt_convolver_del( void *ptr );
 

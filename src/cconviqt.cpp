@@ -19,11 +19,10 @@ extern "C" {
     return 0;
   }
   
-  int conviqt_beam_read( void *ptr, long beamlmax, long beammmax, char pol, char *infile_beam, MPI_Comm *comm ) {
+  int conviqt_beam_read( void *ptr, long beamlmax, long beammmax, char pol, char *infile_beam, MPI_Comm comm ) {
     try {
       conviqt::beam *ref = reinterpret_cast< conviqt::beam * >( ptr );
-      //return ref->read( beamlmax, beammmax, pol, infile_beam, *comm );
-      ref->read( beamlmax, beammmax, pol, infile_beam, MPI_COMM_WORLD );
+      ref->read( beamlmax, beammmax, pol, infile_beam, comm );
     } catch (...) {
       return -1;
     }
@@ -42,11 +41,10 @@ extern "C" {
     return 0;
   }
   
-  int conviqt_sky_read( void *ptr, long skylmax, char pol, char *infile_sky, double fwhm_deconv_sky, MPI_Comm *comm ) {
+  int conviqt_sky_read( void *ptr, long skylmax, char pol, char *infile_sky, double fwhm_deconv_sky, MPI_Comm comm ) {
     try {
       conviqt::sky *ref = reinterpret_cast< conviqt::sky * >( ptr );
-      //return ref->read( skylmax, pol, infile_sky, fwhm_deconv_sky, *comm );
-      ref->read( skylmax, pol, infile_sky, fwhm_deconv_sky, MPI_COMM_WORLD );
+      ref->read( skylmax, pol, infile_sky, fwhm_deconv_sky, comm );
     } catch (...) {
       return -1;
     }
@@ -120,7 +118,9 @@ extern "C" {
   }
   
   int conviqt_pointing_alloc( void *ptr, long n ) {
+#ifdef DEBUG
     std::cout << "Allocating " << n << " doubles for pointing" << std::endl;
+#endif
     try {
       conviqt::pointing *ref = reinterpret_cast< conviqt::pointing * >( ptr );
       ref->alloc( n );
@@ -139,9 +139,27 @@ extern "C" {
     }
   }
 
-  void *conviqt_convolver_new( void *skyptr, void *beamptr, void *detptr, char pol, long lmax, long beammmax, long nbetafac, long mcsamples, long lmaxout, long order, MPI_Comm *comm ) {
+  void *conviqt_convolver_new( void *skyptr, void *beamptr, void *detptr, char pol, long lmax, long beammmax, long nbetafac, long mcsamples, long lmaxout, long order, MPI_Comm comm ) {
+
+#ifdef DEBUG
+    int size, rank, err;
+    
+    err = MPI_Comm_size( comm, &size );
+    if ( err ) {
+      std::cout << "conviqt_convolver_new: Failed to query communicator size." << std::endl;
+      return NULL;
+    }
+
+    err = MPI_Comm_rank( comm, &rank );
+    if ( err ) {
+      std::cout << "conviqt_convolver_new: Failed to query task rank." << std::endl;
+      return NULL;
+    }
+
+    std::cout << "conviqt_convolver_new: Task " << rank << " / " << size << " initializing." << std::endl;
 
     std::cout << "conviqt_convolver_new called with pol = " << int(pol) << ", lmax = " << lmax << ", beammmax = " << beammmax << ", nbetafac = " << nbetafac << ", mcsamples = " << mcsamples << ", lmaxout = " << lmaxout << ", order = " << order << std::endl;
+#endif
 
     if ( lmax > LMAXMAX || beammmax > LMAXMAX || nbetafac > LMAXMAX || mcsamples > LMAXMAX || lmaxout> LMAXMAX ) {
       std::cerr << "Suspiciously large convolver parameters: lmax = " << lmax << ", beammax = " << beammmax << ", nbetafac = " << nbetafac << ", mcsamples = " << mcsamples << ", lmaxout = " << lmaxout << std::endl;
@@ -152,7 +170,7 @@ extern "C" {
     conviqt::beam *beamref = reinterpret_cast< conviqt::beam * >( beamptr );
     conviqt::detector *detref = reinterpret_cast< conviqt::detector * >( detptr );
 
-    return new(std::nothrow) conviqt::convolver( skyref, beamref, detref, pol, lmax, beammmax, nbetafac, mcsamples, lmaxout, order, MPI_COMM_WORLD );
+    return new(std::nothrow) conviqt::convolver( skyref, beamref, detref, pol, lmax, beammmax, nbetafac, mcsamples, lmaxout, order, comm );
   }
 
   int conviqt_convolver_del( void *ptr ) {
@@ -203,10 +221,12 @@ extern "C" {
       conviqt::convolver *cnvref = reinterpret_cast< conviqt::convolver * >( cnvptr );
       conviqt::pointing *pntref = reinterpret_cast< conviqt::pointing * >( pntptr );
 
+#ifdef DEBUG
       std::cout << "conviqt_convolver_convolve called. pnt.size() = " << pntref->size() << std::endl;
       for ( int i = 0; i<10; ++i ) {
         std::cout << "pnt[" << i << "] = " << (*pntref)[i] << std::endl;
       }
+#endif
 
       cnvref->convolve( *pntref, calibrate );
     } catch (...) {

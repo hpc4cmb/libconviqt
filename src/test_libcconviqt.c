@@ -92,8 +92,8 @@ int main( int argc, char **argv ) {
 
     printf( "pol = %i\n", pol );
     
-    conviqt_beam_read( beam, beamlmax, beammmax, pol, beamfile, &comm );
-    conviqt_sky_read( sky, lmax, pol, skyfile, fwhm, &comm );
+    conviqt_beam_read( beam, beamlmax, beammmax, pol, beamfile, comm );
+    conviqt_sky_read( sky, lmax, pol, skyfile, fwhm, comm );
 
     // Populate the pointing array
 
@@ -120,7 +120,7 @@ int main( int argc, char **argv ) {
       printf( "%li : %f %f %f %f %f\n", row, ppnt[row*5+0], ppnt[row*5+1], ppnt[row*5+2], ppnt[row*5+3], ppnt[row*5+4] );
     }
     
-    cnv = conviqt_convolver_new( sky, beam, det, pol, lmax, beammmax, Nbetafac, MCSamples, lmaxOut, order, &comm );
+    cnv = conviqt_convolver_new( sky, beam, det, pol, lmax, beammmax, Nbetafac, MCSamples, lmaxOut, order, comm );
 
     conviqt_convolver_convolve( cnv, pnt, calibrate );
 

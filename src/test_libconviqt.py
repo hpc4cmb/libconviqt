@@ -5,14 +5,22 @@ import ctypes
 import numpy as np
 import sys
 
+try:
+    if MPI._sizeof(MPI.Comm) == ctypes.sizeof(ctypes.c_int):
+        MPI_Comm = ctypes.c_int
+    else:
+        MPI_Comm = ctypes.c_void_p
+except Exception as e:
+    raise Exception('Failed to set the portable MPI communicator datatype. MPI4py is probably too old. You may need to install from a git checkout. ({})'.format(e))
+
 # Make sure to check your LD_LIBRARY_PATH
 
 comm = MPI.COMM_WORLD
 itask = comm.Get_rank()
 ntask = comm.Get_size()
 
-#comm_ptr = MPI._addressof( comm )
-#fcomm = comm.py2f()
+comm_ptr = MPI._addressof( comm )
+comm = MPI_Comm.from_address( comm_ptr )
 
 if itask == 0: print 'Running with ', ntask, ' MPI tasks'
 
@@ -48,11 +56,11 @@ order = 3
 
 
 beam = libconviqt.conviqt_beam_new()
-err = libconviqt.conviqt_beam_read( beam, ctypes.c_long(beamlmax), ctypes.c_long(beammmax), ctypes.c_byte(pol), beamfile, comm.py2f()  )
+err = libconviqt.conviqt_beam_read( beam, ctypes.c_long(beamlmax), ctypes.c_long(beammmax), ctypes.c_byte(pol), beamfile, comm )
 if err != 0: raise Exception( 'Failed to load ' + beamfile )
 
 sky = libconviqt.conviqt_sky_new()
-err = libconviqt.conviqt_sky_read( sky, ctypes.c_long(lmax), ctypes.c_byte(pol), skyfile, ctypes.c_double(fwhm), comm.py2f()  )
+err = libconviqt.conviqt_sky_read( sky, ctypes.c_long(lmax), ctypes.c_byte(pol), skyfile, ctypes.c_double(fwhm), comm )
 if err != 0: raise Exception( 'Failed to load ' + skyfile )
 
 detector = libconviqt.conviqt_detector_new_with_id( det_id )
@@ -92,7 +100,7 @@ for i in range(10):
 
 print 'Creating convolver'
 
-convolver = libconviqt.conviqt_convolver_new( sky, beam, detector, ctypes.c_byte(pol), ctypes.c_long(lmax), ctypes.c_long(beammmax), ctypes.c_long(nbetafac), ctypes.c_long(mcsamples), ctypes.c_long(lmaxout), ctypes.c_long(order), comm.py2f() )
+convolver = libconviqt.conviqt_convolver_new( sky, beam, detector, ctypes.c_byte(pol), ctypes.c_long(lmax), ctypes.c_long(beammmax), ctypes.c_long(nbetafac), ctypes.c_long(mcsamples), ctypes.c_long(lmaxout), ctypes.c_long(order), comm )
 if convolver == 0: raise Exception( "Failed to instantiate convolver" );
 
 print 'Convolving data'
