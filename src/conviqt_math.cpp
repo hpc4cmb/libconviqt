@@ -1491,6 +1491,13 @@ int convolver::convolve( pointing & pntarr, bool calibrate ) {
   int cores = mpiMgr.num_ranks(), corenum = mpiMgr.rank();
   //long Nbeta = cores*Nbetafac;
 
+  // Assign a running index across the communicator to the last column of pntarr
+  // It is needed to collect the convolved data.
+  long my_offset=0;
+  int err = MPI_Scan( &totsize, &my_offset, 1, MPI_LONG, MPI_SUM, mpiMgr.comm() );
+  my_offset -= totsize;
+  for (long ii=0; ii<totsize; ii++) pntarr[5*ii+4] = my_offset + ii;
+
   long ntod=0, ntod2=0, outBetaSegSize;
   levels::arr<int> inBetaSeg, inBetaSegFir, inBetaSegSec, outBetaSeg;
   //long arrsize, countFirstHalf, countSecondHalf;
