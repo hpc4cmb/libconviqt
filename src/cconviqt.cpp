@@ -6,6 +6,8 @@
 // The C interface must not throw exceptions at calling programs that may not be able to handle them
 
 extern "C" {
+
+#include <string.h>
   
   void *conviqt_beam_new() { return new(std::nothrow) conviqt::beam; }
   
