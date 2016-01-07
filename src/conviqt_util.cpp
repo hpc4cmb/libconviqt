@@ -2,237 +2,144 @@
 
 namespace conviqt {
 
-void sift_down_DL( levels::arr<double> &ra, levels::arr<long> &brr, const int l, const int r ) //FROM P-340 OF NR
-{
-  int j, jold;
-  double a;
-  long b;
+void hpsort_DL( levels::arr<double> &ra, levels::arr<long> &brr ) {
 
-  a = ra[l];
-  b = brr[l];
-  jold = l;
-  j = 2*l + 1;
-
-  while( j <= r )
-    {
-      if ( j < r && ra[j] < ra[j+1] ) j++;
-      if ( a >= ra[j] ) break;
-      ra[jold] = ra[j];
-      brr[jold] = brr[j];
-      jold = j;
-      j = 2*j + 1;
-    }
+  // Sort ra and brr based on ra.
+  // This version requires lots of work space but is fast.
   
-  ra[jold] = a;
-  brr[jold] = b;
-}
+  if ( ra.size() != brr.size() ) {
+    throw std::runtime_error( "Incompatible dimensions" );
+  }
 
+  size_t i, n=ra.size();
+
+  // Generate a vector of pairs
+
+  std::vector< std::pair<double, size_t> > pairs(n);
+  for (i=0; i<n; ++i) pairs[i] = std::make_pair(ra[i], i);
+
+  // Sort the pairs
+
+  std::sort( pairs.begin(), pairs.end(), [](std::pair<double,size_t> p1, std::pair<double,size_t> p2) -> bool {return p1.first < p2.first;} );
+
+  // Pull the sorted ar-values
+
+  for ( i=0; i<n; ++i ) {
+    ra[i] = pairs[i].first;
+  }
+
+  // Sort brr
+
+  std::vector<long> temp(n);
+
+  for ( i=0; i<n; ++i ) {
+    size_t j = pairs[i].second;
+    temp[i] = brr[j];
+  }
+
+  memcpy( &(brr[0]), &(temp[0]), sizeof(long)*n );
   
-void hpsort_DL( levels::arr<double> &ra, levels::arr<long> &brr ) // FROM P-340 OF NR
-{
-  int i;
-  int n=ra.size();
+}
   
-  for( i=n/2-1; i>=0; i-- )
-    sift_down_DL( ra, brr, i, n-1 );
-
-  for (i=n-1; i>0; i--)
-    {
-      std::swap( ra[0], ra[i] );
-      std::swap( brr[0], brr[i] );
-      sift_down_DL( ra, brr, 0, i-1 );
-    }
-}
-
-void sift_down_arrTheta( levels::arr<double> &ra, const int l, const int r ) // FROM P-340 OF NR
-{
-  int j, jold;
-  double a,c,d,f;
-  double b;
-
-  a = ra[5*l+1];
-  b = ra[5*l+0];
-  f = ra[5*l+4];
-  c = ra[5*l+2];
-  d = ra[5*l+3];
-  jold = l;
-  j = 2*l + 1;
-
-  while( j <= r )
-    {
-      if ( j < r && ra[5*j+1] < ra[5*(j+1)+1] ) j++;
-      if ( a >= ra[5*j+1] ) break;
-      ra[5*jold+1] = ra[5*j+1];
-      ra[5*jold+2] = ra[5*j+2];
-      ra[5*jold+0] = ra[5*j+0];
-      ra[5*jold+4] = ra[5*j+4];
-      ra[5*jold+3] = ra[5*j+3];
-      jold = j;
-      j = 2*j + 1;
-    }
   
-  ra[5*jold+1] = a;
-  ra[5*jold+2] = c;
-  ra[5*jold+0] = b;
-  ra[5*jold+4] = f;
-  ra[5*jold+3] = d;
-}
-
-
-void hpsort_arrTheta( levels::arr<double> &ra ) // FROM P-340 OF NR
-{
-  int i;
-  int n = ra.size()/5;
-  for(i=n/2-1; i>=0; i--)
-    sift_down_arrTheta(ra,i,n-1);
-  for (i=n-1; i>0; i--)
-    {
-      std::swap(ra[1], ra[5*i+1]);
-      std::swap(ra[0], ra[5*i+0]);
-      std::swap(ra[4], ra[5*i+4]);
-      std::swap(ra[2], ra[5*i+2]);
-      std::swap(ra[3], ra[5*i+3]);
-      sift_down_arrTheta(ra,0,i-1);
-    }
-}
-
-void sift_down_arrTOD( levels::arr<double> &ra, const int l, const int r ) // FROM P-340 OF NR
-{
-  int j, jold;
-  double a, c, d, f;
-  double b;
-  a = ra[5*l+3];
-  b = ra[5*l+0];
-  f = ra[5*l+4];
-  c = ra[5*l+2];
-  d = ra[5*l+1];
-  jold = l;
-  j = 2*l + 1;
-  while(j<=r)
-    {
-      if ( j<r && ra[5*j+3] < ra[5*(j+1)+3] ) j++;
-      if ( a >= ra[5*j+3] ) break;
-      ra[5*jold+3] = ra[5*j+3];
-      ra[5*jold+2] = ra[5*j+2];
-      ra[5*jold+0] = ra[5*j+0];
-      ra[5*jold+4] = ra[5*j+4];
-      ra[5*jold+1]  =ra[5*j+1];
-      jold = j;
-      j = 2*j+1;
-    }
-  ra[5*jold+3] = a;
-  ra[5*jold+2] = c;
-  ra[5*jold+0] = b;
-  ra[5*jold+4] = f;
-  ra[5*jold+1] = d;
-}
-
-
-void hpsort_arrTOD( levels::arr<double> &ra ) // FROM P-340 OF NR
-{
-  int i;
-  int n=ra.size()/5;
+void hpsort_arr( levels::arr<double> &ra, int sortcol ) {
   
-  for(i=n/2-1; i>=0; i--)
-    sift_down_arrTOD( ra, i, n-1 );
+  if ( sortcol < 0 || sortcol > 4 ) {
+    throw std::runtime_error( "Sort column must be between 0 and 4." );
+  }
   
-  for (i=n-1; i>0; i--)
-    {
-      std::swap(ra[3], ra[5*i+3]);
-      std::swap(ra[0], ra[5*i+0]);
-      std::swap(ra[4], ra[5*i+4]);
-      std::swap(ra[2], ra[5*i+2]);
-      std::swap(ra[1], ra[5*i+1]);
-      sift_down_arrTOD( ra, 0, i-1 );
-    }
-}
+  // Sort 5-column array, ra based on the column sortcol
+  
+  size_t i, n=ra.size()/5;
+  
+  // Generate a vector of pairs
 
+  std::vector< std::pair<double, size_t> > pairs(n);
+  for (i=0; i<n; ++i) pairs[i] = std::make_pair(ra[5*i+sortcol], i);
 
-void sift_down_arrTime( levels::arr<double> &ra, const int l, const int r ) // FROM P-340 OF NR
-{
-  int j, jold;
-  double a, c, d, f;
-  double b;
-  a = ra[5*l+4];
-  b = ra[5*l+0];
-  f = ra[5*l+1];
-  c = ra[5*l+2];
-  d = ra[5*l+3];
-  jold = l;
-  j = 2*l + 1;
-  while(j<=r)
-    {
-      if (j<r && ra[5*j+4] < ra[5*(j+1)+4]) j++;
-      if (a>= ra[5*j+4]) break;
-      ra[5*jold+4] = ra[5*j+4];
-      ra[5*jold+2] = ra[5*j+2];
-      ra[5*jold+0] = ra[5*j+0];
-      ra[5*jold+1] = ra[5*j+1];
-      ra[5*jold+3] = ra[5*j+3];
-      jold = j;
-      j = 2*j+1;
+  // Sort the pairs
+
+  std::sort( pairs.begin(), pairs.end(), [](std::pair<double,size_t> p1, std::pair<double,size_t> p2) -> bool {return p1.first < p2.first;} );
+
+  // Order each column based on the sorted indices
+
+  std::vector< double > temp(n);
+  
+  for ( int col=0; col<5; ++col ) {
+    if ( col == sortcol ) {
+      // These elements are already sorted
+      for ( i=0; i<n; ++i ) {
+	ra[5*i+col] = pairs[i].first;
+      }
+    } else {
+      // Use temporary workspace to sort this column
+      for ( i=0; i<n; ++i ) {
+	size_t j = pairs[i].second;
+	temp[i] = ra[5*j+col];
+      }
+      for ( i=0; i<n; ++i ) {
+	ra[5*i+col] = temp[i];
+      }
     }
-  ra[5*jold+4] = a;
-  ra[5*jold+2] = c;
-  ra[5*jold+0] = b;
-  ra[5*jold+1] = f;
-  ra[5*jold+3] = d;
+  }
+
 }
 
   
-void hpsort_arrTime( levels::arr<double> &ra ) // FROM P-340 OF NR
-{
-  int i;
-  int n = ra.size()/5;
-  for(i=n/2-1; i>=0; i--)
-    sift_down_arrTime(ra, i, n-1);
-  for (i=n-1; i>0; i--)
-    {
-      std::swap(ra[4], ra[5*i+4]);
-      std::swap(ra[0], ra[5*i+0]);
-      std::swap(ra[1], ra[5*i+1]);
-      std::swap(ra[2], ra[5*i+2]);
-      std::swap(ra[3], ra[5*i+3]);
-      sift_down_arrTime( ra, 0, i-1 );
-    }
+void hpsort_arrTheta( levels::arr<double> &ra ) {
+
+  hpsort_arr( ra, 1 );
+  
 }
 
+void hpsort_arrTOD( levels::arr<double> &ra ) {
 
-void sift_down_DDcm( levels::arr<double> &ra, levels::arr<double> &brr, const int l, const int r ) // FROM P-340 OF NR
-{
-  int j, jold;
-  double a;
-  double b;
-  a = ra[l];
-  b = brr[l];
-  jold = l;
-  j = 2*l+1;
-  while(j<=r)
-    {
-      if (j<r && ra[j] < ra[j+1]) j++;
-      if (a>= ra[j]) break;
-      ra[jold]=ra[j];
-      brr[jold]=brr[j];
-      jold = j;
-      j = 2*j + 1;
-    }
-  ra[jold] = a;
-  brr[jold] = b;
+  hpsort_arr( ra, 3 );
+  
 }
 
+  
+void hpsort_arrTime( levels::arr<double> &ra ) {
 
-void hpsort_DDcm( levels::arr<double> &ra, levels::arr<double> &brr ) //FROM P-340 OF NR
-{
-  int i;
-  int n = ra.size();
-  for(i=n/2-1; i>=0; i--)
-    sift_down_DDcm( ra, brr, i, n-1 );
-  for (i=n-1; i>0; i--)
-    {
-      std::swap(ra[0], ra[i]);
-      std::swap(brr[0], brr[i]);
-      sift_down_DDcm( ra, brr,0, i-1 );
-    }
+  hpsort_arr( ra, 4 );
+
+}
+
+void hpsort_DDcm( levels::arr<double> &ra, levels::arr<double> &brr ) {
+
+  if ( ra.size() != brr.size() ) {
+    throw std::runtime_error( "Incompatible dimensions" );
+  }
+  
+  // Sort ra and brr based on ra.
+  // This version requires lots of work space but is fast.
+  
+  size_t i, n=ra.size();
+
+  // Generate a vector of pairs
+
+  std::vector< std::pair<double, size_t> > pairs(n);
+  for (i=0; i<n; ++i) pairs[i] = std::make_pair(ra[i], i);
+
+  // Sort the pairs
+
+  std::sort( pairs.begin(), pairs.end(), [](std::pair<double,size_t> p1, std::pair<double,size_t> p2) -> bool {return p1.first < p2.first;} );
+
+  // Sort brr using ra as workspace
+
+  for ( i=0; i<n; ++i ) {
+    size_t j = pairs[i].second;
+    ra[i] = brr[j];
+  }
+
+  memcpy( &(brr[0]), &(ra[0]), sizeof(double)*n );
+  
+  // Pull the sorted ar-values
+
+  for ( i=0; i<n; ++i ) {
+    ra[i] = pairs[i].first;
+  }
+  
 }
 
 } // namespace conviqt
