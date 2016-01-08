@@ -33,18 +33,28 @@ if test x"${CXXFLAGS}" = x; then
 fi
 AC_CANONICAL_HOST
 AC_PROG_INSTALL
-LT_INIT
 
 dnl +-------------------------
-dnl | C support
-dnl +-------------------------
-AC_PROG_CC
-
-dnl +-------------------------
-dnl | C++ support
+dnl | C++ support -- use MPI compiler throughout
 dnl +-------------------------
 AC_PROG_CXX
+AX_PROG_CXX_MPI([],[],[
+  AC_MSG_FAILURE([MPI C++ compiler is required but not found.])
+])
 AX_CXX_COMPILE_STDCXX([11])
+
+dnl +-------------------------
+dnl | C support -- use MPI compiler throughout
+dnl +-------------------------
+dnl AC_PROG_CC
+AX_PROG_CC_MPI([],[],[
+  AC_MSG_FAILURE([MPI CC compiler is required but not found.])
+])
+
+dnl libtool must only be called after the c/c++ compilers are overridden
+dnl by MPI versions using AX_PROG_CC_MPI and AX_PROG_CXX_MPI
+
+LT_INIT
 
 dnl +------------------------------------------------
 dnl | This is a C++ project...
@@ -57,14 +67,6 @@ dnl +------------------------------------------------
 AC_LANG_PUSH([C])
 ACX_CFITSIO([], [AC_MSG_ERROR([Could not find the CFITSIO library!])])
 AC_LANG_POP([C])
-
-dnl +------------------------------------------------
-dnl | Check for MPI C and C++ compilers
-dnl +------------------------------------------------
-AC_LANG_PUSH([C])
-ACX_MPI([], [AC_MSG_ERROR([Cannot find MPI C compiler!])])
-AC_LANG_POP([C])
-ACX_MPI([], [AC_MSG_ERROR([Cannot find MPI C++ compiler!])])
 
 dnl +------------------------------------------------
 dnl | Set outputs
@@ -88,12 +90,10 @@ dnl +------------------------------------------------
 AC_MSG_NOTICE([                                           ])
 AC_MSG_NOTICE([=========== Build Configuration ===========])
 AC_MSG_NOTICE([                                           ])
-AC_MSG_NOTICE([  Serial C++ Compiler       : $CXX])
+AC_MSG_NOTICE([  C++ Compiler              : $CXX])
 AC_MSG_NOTICE([  C++ Compile Flags         : $CXXFLAGS])
-AC_MSG_NOTICE([  Serial C Compiler         : $CC])
+AC_MSG_NOTICE([  C Compiler                : $CC])
 AC_MSG_NOTICE([  C Compile Flags           : $CFLAGS])
-AC_MSG_NOTICE([  MPI C++ Compiler          : $MPICXX])
-AC_MSG_NOTICE([  MPI C Compiler            : $MPICC])
 AC_MSG_NOTICE([  CFITSIO Compile           : $CFITSIO_CPPFLAGS])
 AC_MSG_NOTICE([  CFITSIO Link              : $CFITSIO])
 AC_MSG_NOTICE([                                           ])

@@ -1,7 +1,4 @@
 
-CC = @MPICC@
-CXX = @MPICXX@
-
 # Initialize compile and linking flags
 
 AM_CPPFLAGS = \
