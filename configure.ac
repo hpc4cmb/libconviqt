@@ -44,6 +44,7 @@ dnl +-------------------------
 dnl | C++ support
 dnl +-------------------------
 AC_PROG_CXX
+AX_CXX_COMPILE_STDCXX([11])
 
 dnl +------------------------------------------------
 dnl | This is a C++ project...
