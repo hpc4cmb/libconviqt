@@ -31,27 +31,71 @@ int convolver::set_detector( detector *d ) {
   return 0;
 }
 
-void convolver::weight_ncm( double x, levels::arr<double> &wgt )
-  {
-    int npoints = order + 1;
-    levels::arr<double> base_wgt(npoints);
-    base_wgt.fill(1);
-    for (int m=0; m<npoints; ++m)
-      for (int n=0; n<npoints; ++n)
-	if (m!=n) base_wgt[m] *= m-n;
+  
+void convolver::weight_ncm( double x, levels::arr<double> &wgt ) {
+  int npoints = order + 1;
+
+  if ( base_wgt.size() == 0 ) {
+    // Initialize base_wgt only when needed
+    base_wgt.resize(npoints,1);
+    for (int m=0; m<npoints; ++m) {
+      for (int n=0; n<m; ++n) base_wgt[m] *= m-n;	
+      for (int n=m+1; n<npoints; ++n) base_wgt[m] *= m-n;	
+    }
     for (int m=0; m<npoints; ++m) base_wgt[m] = 1./base_wgt[m];
-    for (int m=0; m<npoints; ++m)
-      wgt[m] = base_wgt[m];
-    double mul1=x, mul2=x-npoints+1;
-    for (int m=1; m<npoints; ++m)
-      {
-	wgt[m]*=mul1;
-	wgt[npoints-m-1]*=mul2;
-	mul1*=x-m;
-	mul2*=x-npoints+m+1;
-      }
+  } else if ( base_wgt.size() != npoints ) {
+    throw std::runtime_error( "base_wgt changed dimensions" );
   }
 
+  std::vector<double> temp_wgt(base_wgt);
+  double mul1=x;
+  for (int m=1; m<npoints; ++m) {
+    temp_wgt[m]*=mul1;
+    mul1*=x-m;
+  }
+
+  double mul2=x-npoints+1;
+  for (int m=1; m<npoints; ++m) {
+    temp_wgt[npoints-m-1]*=mul2;
+    mul2*=x-npoints+m+1;
+  }
+  
+  memcpy( &(wgt[0]), &(temp_wgt[0]), sizeof(double)*npoints );
+}
+
+  
+void convolver::weight_ncm( double x, std::vector<double> &wgt ) {
+  int npoints = order + 1;
+
+  if ( base_wgt.size() == 0 ) {
+    // Initialize base_wgt only when needed
+    base_wgt.resize(npoints,1);
+    for (int m=0; m<npoints; ++m) {
+      for (int n=0; n<m; ++n) base_wgt[m] *= m-n;	
+      for (int n=m+1; n<npoints; ++n) base_wgt[m] *= m-n;	
+    }
+    for (int m=0; m<npoints; ++m) base_wgt[m] = 1./base_wgt[m];
+  } else if ( base_wgt.size() != npoints ) {
+    throw std::runtime_error( "base_wgt changed dimensions" );
+  }
+
+  std::vector<double> temp_wgt(base_wgt);
+  double mul1=x;
+  for (int m=1; m<npoints; ++m) {
+    temp_wgt[m]*=mul1;
+    mul1*=x-m;
+  }
+  
+  double mul2=x-npoints+1;
+  for (int m=1; m<npoints; ++m) {
+    temp_wgt[npoints-m-1]*=mul2;
+    mul2*=x-npoints+m+1;
+  }
+  
+  memcpy( &(wgt[0]), &(temp_wgt[0]), sizeof(double)*npoints );
+}
+
+  
 void convolver::todAnnulus(levels::arr2<xcomplex<double> > &tod1, levels::arr2<xcomplex<double> > &Cmm, levels::arr<double> &cs, levels::arr<double> &sn, levels::arr<double> &cs0, levels::arr<double> &sn0)
 {
   long binElements = 2*lmaxOut + 1;
@@ -1339,100 +1383,122 @@ void convolver::interpolTOD_arrTestcm_pol_v4( levels::arr<double> &outpntarr1, l
 }
 
 
-void convolver::conviqt_tod_loop_v4(levels::arr<long> &lowerIndex, levels::arr<long> &upperIndex, levels::arr<double> &outpntarr, levels::arr3<xcomplex<double> > &TODAsym, long thetaIndex, levels::arr<long> &itheta0, long max_order, double inv_delta_theta, double theta0, double inv_delta_phi, double phioffset, long nphi, long ioffset, long npoints, long ntod, levels::arr<double> &TODValue, long lat)
-{
-  for (int ii=lowerIndex[thetaIndex]; ii>=upperIndex[thetaIndex]; ii--)
-    {
-      levels::arr<double> wgt1(max_order+1,0.);
+void convolver::conviqt_tod_loop_v4(levels::arr<long> &lowerIndex, levels::arr<long> &upperIndex, levels::arr<double> &outpntarr, levels::arr3<xcomplex<double> > &TODAsym, long thetaIndex, levels::arr<long> &itheta0, long max_order, double inv_delta_theta, double theta0, double inv_delta_phi, double phioffset, long nphi, long ioffset, long npoints, long ntod, levels::arr<double> &TODValue, long lat) {
+  
+  levels::arr2<std::complex<double> > conviqtarr;
+  try { 
+    conviqtarr.alloc(nphi,beammmax+1);
+  } catch ( std::bad_alloc & e ) {
+    std::cerr << "conviqt_tod_loop_v4 : Out of memory allocating " << nphi*(beammmax+1)*16./1024/1024 << "MB for conviqtarr" << std::endl;
+    throw;
+  }
+  
+  for (long ii=0; ii<nphi; ii++)
+    for (long jj=0; jj<beammmax+1; jj++)
+      conviqtarr[ii][jj] = TODAsym(ii, jj, lat);
+  
+  for (int ii=lowerIndex[thetaIndex]; ii>=upperIndex[thetaIndex]; ii--) {
+    std::vector<double> wgt1(max_order+1,0.);
+    //levels::arr<double> wgt1(max_order+1,0.);
       
-      double frac = (outpntarr[5*ii+1]-theta0)*inv_delta_theta;//Note that the larger the ii the smaller frac is and the smaller itheta0[ii] is.
-      frac -= itheta0[ii];
-      weight_ncm( frac, wgt1 );
+    double frac = (outpntarr[5*ii+1]-theta0)*inv_delta_theta;//Note that the larger the ii the smaller frac is and the smaller itheta0[ii] is.
+    frac -= itheta0[ii];
+    weight_ncm( frac, wgt1 );
       
-      levels::arr<double> wgt2(max_order+1,0.);
-      frac = outpntarr[5*ii]*inv_delta_phi - phioffset;
-      frac = levels::fmodulo( frac, double(nphi) );
-      int iphi0 = int (frac) - ioffset;
-      frac -= iphi0;
-      if (iphi0 >= nphi) iphi0-=nphi;
-      if (iphi0 < 0) iphi0+=nphi;
-      weight_ncm( frac, wgt2 );
+    std::vector<double> wgt2(max_order+1,0.);
+    //levels::arr<double> wgt2(max_order+1,0.);
+    frac = outpntarr[5*ii]*inv_delta_phi - phioffset;
+    frac = levels::fmodulo( frac, double(nphi) );
+    int iphi0 = int (frac) - ioffset;
+    frac -= iphi0;
+    if (iphi0 >= nphi) iphi0-=nphi;
+    if (iphi0 < 0) iphi0+=nphi;
+    weight_ncm( frac, wgt2 );
       
-      double omega = outpntarr[5*ii+2]+halfpi;
-      double sinomg = sin(omega), cosomg = cos(omega);
-      levels::arr<double> cosang(beammmax+1), sinang(beammmax+1);
-      cosang[0] = 1.; sinang[0] = 0.;
-      for (long psiIndex=1; psiIndex<=beammmax; psiIndex++) 
-	{
-	  cosang[psiIndex] = cosang[psiIndex-1]*cosomg - sinang[psiIndex-1]*sinomg;
-	  sinang[psiIndex] = sinang[psiIndex-1]*cosomg + cosang[psiIndex-1]*sinomg;
-	}
-      cosang[0] = 0.5;
-      for (int phiIndex=0; phiIndex<npoints; ++phiIndex)
-	{
-	  double weight = wgt2[phiIndex]*wgt1[thetaIndex-(itheta0[ii]-itheta0[ntod-1])];
-	  long newphiIndex=iphi0+phiIndex;
-	  if (newphiIndex>=nphi) newphiIndex-=nphi;
-	  for (long psiIndex=0; psiIndex<=beammmax; psiIndex++) 
-	    {
-	      TODValue[ii] += 2.*weight*( cosang[psiIndex]*TODAsym(newphiIndex, psiIndex, lat).real() - sinang[psiIndex]*TODAsym(newphiIndex, psiIndex, lat).imag() );
-	    }
-	}
+    double omega = outpntarr[5*ii+2]+halfpi;
+    double sinomg = sin(omega), cosomg = cos(omega);
+    std::vector<double> cosang(beammmax+1), sinang(beammmax+1);
+    //levels::arr<double> cosang(beammmax+1), sinang(beammmax+1);
+    cosang[0] = 1.; sinang[0] = 0.;
+    for (long psiIndex=1; psiIndex<=beammmax; psiIndex++) {
+      cosang[psiIndex] = cosang[psiIndex-1]*cosomg - sinang[psiIndex-1]*sinomg;
+      sinang[psiIndex] = sinang[psiIndex-1]*cosomg + cosang[psiIndex-1]*sinomg;
     }
+    cosang[0] = 0.5;
+    double weight1 = wgt1[thetaIndex-(itheta0[ii]-itheta0[ntod-1])];
+    for (int phiIndex=0; phiIndex<npoints; ++phiIndex) {
+      double weight = wgt2[phiIndex]*weight1;
+      long newphiIndex = iphi0+phiIndex;
+      if (newphiIndex>=nphi) newphiIndex -= nphi;
+      std::complex<double> *ca = &(conviqtarr[newphiIndex][0]);
+      double *cang = &(cosang[0]);
+      double *sang = &(sinang[0]);
+      for (long psiIndex=0; psiIndex<=beammmax; psiIndex++) {
+	//TODValue[ii] += 2.*weight*( cosang[psiIndex]*TODAsym(newphiIndex, psiIndex, lat).real() - sinang[psiIndex]*TODAsym(newphiIndex, psiIndex, lat).imag() );
+	TODValue[ii] += 2.*weight*( (*cang)*(*ca).real() - (*sang)*(*ca).imag() );
+	++ca;
+	++cang;
+	++sang;
+      }
+    }
+  }
 }
 
 void convolver::conviqt_tod_loop_pol_v5(levels::arr<long> &lowerIndex, levels::arr<long> &upperIndex, levels::arr<double> &outpntarr, levels::arr3<xcomplex<double> > &TODAsym, long thetaIndex, levels::arr<long> &itheta0, long max_order, double inv_delta_theta, double theta0, double inv_delta_phi, double phioffset, long nphi, long ioffset, long npoints, long ntod, levels::arr<double> &TODValue, long lat)
 {
-  levels::arr2<xcomplex<double> > conviqtarr;
+  levels::arr2<std::complex<double> > conviqtarr;
   try { 
     conviqtarr.alloc(nphi,beammmax+1);
   } catch ( std::bad_alloc & e ) {
-    std::cerr << "conviqt_tod_loop_pol_v5 : Out of memory allocating " << nphi*(beammmax+1)*16./1024/1024 << "MB for TODAsym" << std::endl;
+    std::cerr << "conviqt_tod_loop_pol_v5 : Out of memory allocating " << nphi*(beammmax+1)*16./1024/1024 << "MB for conviqtarr" << std::endl;
     throw;
   }
 
   for (long ii=0; ii<nphi; ii++)
     for (long jj=0; jj<beammmax+1; jj++)
-      conviqtarr[ii][jj]=TODAsym(ii, jj, lat);
+      conviqtarr[ii][jj] = TODAsym(ii, jj, lat);
 
-  for (int ii=lowerIndex[thetaIndex]; ii>=upperIndex[thetaIndex]; ii--)
-    {
-      levels::arr<double> wgt1(max_order+1,0.);
+  for (int ii=lowerIndex[thetaIndex]; ii>=upperIndex[thetaIndex]; ii--) {
+    std::vector<double> wgt1(max_order+1,0.);
+    
+    double frac = (outpntarr[5*ii+1]-theta0)*inv_delta_theta; // Note that the larger the ii the smaller frac is and the smaller itheta0[ii] is.                                    
+    frac -= itheta0[ii];
+    weight_ncm( frac, wgt1 );
 
-      double frac = (outpntarr[5*ii+1]-theta0)*inv_delta_theta; // Note that the larger the ii the smaller frac is and the smaller itheta0[ii] is.                                    
-      frac -= itheta0[ii];
-      weight_ncm( frac, wgt1 );
+    std::vector<double> wgt2(max_order+1,0.);
+    frac = outpntarr[5*ii]*inv_delta_phi - phioffset;
+    frac = levels::fmodulo( frac, double(nphi) );
+    int iphi0 = int (frac) - ioffset;
+    frac -= iphi0;
+    if ( iphi0 >= nphi ) iphi0 -= nphi;
+    if ( iphi0 < 0 ) iphi0 += nphi;
+    weight_ncm( frac, wgt2 );
 
-      levels::arr<double> wgt2(max_order+1,0.);
-      frac = outpntarr[5*ii]*inv_delta_phi - phioffset;
-      frac = levels::fmodulo( frac, double(nphi) );
-      int iphi0 = int (frac) - ioffset;
-      frac -= iphi0;
-      if ( iphi0 >= nphi ) iphi0 -= nphi;
-      if ( iphi0 < 0 ) iphi0 += nphi;
-      weight_ncm( frac, wgt2 );
-
-      double omega = outpntarr[5*ii+2]+halfpi;
-      double sinomg = sin(omega), cosomg = cos(omega);
-      levels::arr<double> cosang(beammmax+1), sinang(beammmax+1);
-      cosang[0] = 1.; sinang[0] = 0.;
-      for (long psiIndex=1; psiIndex<=beammmax; psiIndex++)
-        {
-          cosang[psiIndex] = cosang[psiIndex-1]*cosomg - sinang[psiIndex-1]*sinomg;
-          sinang[psiIndex] = sinang[psiIndex-1]*cosomg + cosang[psiIndex-1]*sinomg;
-        }
-      cosang[0] = 0.5;
-      for (int phiIndex=0; phiIndex<npoints; ++phiIndex)
-        {
-          double weight = wgt2[phiIndex]*wgt1[thetaIndex-(itheta0[ii]-itheta0[ntod-1])];
-          long newphiIndex=iphi0+phiIndex;
-          if ( newphiIndex >= nphi ) newphiIndex -= nphi;
-          for (long psiIndex=0; psiIndex<=beammmax; psiIndex++)
-            {
-              TODValue[ii] += 2.*weight*( cosang[psiIndex]*conviqtarr[newphiIndex][psiIndex].real() - sinang[psiIndex]*conviqtarr[newphiIndex][psiIndex].imag() );
-            }
-        }
+    double omega = outpntarr[5*ii+2]+halfpi;
+    double sinomg = sin(omega), cosomg = cos(omega);
+    std::vector<double> cosang(beammmax+1), sinang(beammmax+1);
+    cosang[0] = 1.; sinang[0] = 0.;
+    for (long psiIndex=1; psiIndex<=beammmax; psiIndex++) {
+      cosang[psiIndex] = cosang[psiIndex-1]*cosomg - sinang[psiIndex-1]*sinomg;
+      sinang[psiIndex] = sinang[psiIndex-1]*cosomg + cosang[psiIndex-1]*sinomg;
     }
+    cosang[0] = 0.5;
+    double weight1=wgt1[thetaIndex-(itheta0[ii]-itheta0[ntod-1])];
+    for (int phiIndex=0; phiIndex<npoints; ++phiIndex) {
+      double weight = wgt2[phiIndex]*weight1;
+      long newphiIndex=iphi0+phiIndex;
+      if ( newphiIndex >= nphi ) newphiIndex -= nphi;
+      std::complex<double> *ca = &(conviqtarr[newphiIndex][0]);
+      double *cang = &(cosang[0]);
+      double *sang = &(sinang[0]);
+      for (long psiIndex=0; psiIndex<=beammmax; psiIndex++) {
+	TODValue[ii] += 2.*weight*( (*cang)*(*ca).real() - (*sang)*(*ca).imag() );
+	++ca;
+	++cang;
+	++sang;
+      }
+    }
+  }
 }
 
 void convolver::effMFiller( double beta, levels::arr<long> &effM )

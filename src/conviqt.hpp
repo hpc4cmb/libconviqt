@@ -111,8 +111,10 @@ private :
   detector *d;
   bool pol;
   long lmax, beammmax, Nbetafac, MCSamples, lmaxOut, order;
+  std::vector<double> base_wgt;
 
-  void weight_ncm( double x, levels::arr<double> &wgt );
+  void weight_ncm( double x, levels::arr<double> &wgt );  
+  void weight_ncm( double x, std::vector<double> &wgt );
   
   void conviqt_hemiscm_v4( levels::arr3<xcomplex<double> > &tod1, levels::arr3<xcomplex<double> > &tod2, long NThetaIndex1, levels::arr<double> &rthetas );
 
