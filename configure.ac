@@ -60,11 +60,27 @@ dnl +------------------------------------------------
 dnl | This is a C++ project...
 dnl +------------------------------------------------
 AC_LANG([C++])
+AC_LANG_PUSH([C])
+AX_OPENMP
+AC_LANG_POP([C])
+
+dnl +------------------------------------------------
+dnl | ... that will one day be OpenMP parallel
+dnl +------------------------------------------------
+AX_OPENMP
+AC_SUBST([CXXFLAGS],["$CXXFLAGS $OPENMP_CXXFLAGS"])
+AC_SUBST([LDFLAGS],["$LDFLAGS $OPENMP_CXXFLAGS"])
+
+AC_LANG_PUSH([C])
+AX_OPENMP
+AC_LANG_POP([C])
+AC_SUBST([CFLAGS],["$CFLAGS $OPENMP_CFLAGS"])
 
 dnl +------------------------------------------------
 dnl | Check for CFITSIO
 dnl +------------------------------------------------
 AC_LANG_PUSH([C])
+AX_OPENMP
 ACX_CFITSIO([], [AC_MSG_ERROR([Could not find the CFITSIO library!])])
 AC_LANG_POP([C])
 
@@ -92,6 +108,7 @@ AC_MSG_NOTICE([=========== Build Configuration ===========])
 AC_MSG_NOTICE([                                           ])
 AC_MSG_NOTICE([  C++ Compiler              : $CXX])
 AC_MSG_NOTICE([  C++ Compile Flags         : $CXXFLAGS])
+AC_MSG_NOTICE([  C++ Linking Flags         : $LDFLAGS])
 AC_MSG_NOTICE([  C Compiler                : $CC])
 AC_MSG_NOTICE([  C Compile Flags           : $CFLAGS])
 AC_MSG_NOTICE([  CFITSIO Compile           : $CFITSIO_CPPFLAGS])
