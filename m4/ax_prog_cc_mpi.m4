@@ -167,8 +167,6 @@ AC_DEFUN([_AX_PROG_CC_MPI], [
       AC_CHECK_TOOLS([MPICC], [mpicc mpixlc_r mpixlc hcc mpxlc_r mpxlc sxmpicc mpifcc mpgcc mpcc cmpicc cc gcc])
     fi
     AC_SUBST([CC],[$MPICC])
-    AC_MSG_NOTICE([ MPICC : $MPICC])
-    AC_MSG_NOTICE([ CC : $CC])
   fi
   AC_PROG_CC
 ])dnl _AX_PROG_CC_MPI
