@@ -7,6 +7,7 @@
 namespace conviqt {
 
 convolver::convolver( sky *s, beam *b, detector *d, bool pol, long lmax, long beammmax, long Nbetafac, long MCSamples, long lmaxOut, long order, MPI_Comm comm ) : s(s), b(b), d(d), pol(pol), lmax(lmax), beammmax(beammmax), Nbetafac(Nbetafac), MCSamples(MCSamples), lmaxOut(lmaxOut), order(order) {
+  if ( lmax > lmaxOut ) throw std::runtime_error("Error constructing convolver: lmax="+std::to_string(lmax)+" > lmaxOut="+std::to_string(lmaxOut)+".");
   mpiMgr = MPI_Manager( comm );
 }
 
@@ -709,9 +710,7 @@ void convolver::todRedistribution5cm ( levels::arr<double> pntarr, levels::arr<i
 	  double theta = pntarr[5*ii+1];
 	  if ( theta < 0 || theta > pi )
 	    {
-        std::ostringstream o;
-        o << "ERROR: Illegal latitude in pntarr: theta = " << theta << " not in 0..pi";
-	      throw std::runtime_error( o.str() );
+	      throw std::runtime_error( "ERROR: Illegal latitude in pntarr: theta = " + std::to_string(theta) + " not in 0..pi" );
 	    }
 	  if ( theta >= halfpi ) theta = pi - theta;
 	  ratiobeta = theta / ratiodeltas;
@@ -937,12 +936,10 @@ void convolver::conviqt_hemiscm_pol_v4( levels::arr3<xcomplex<double> > &tod1, l
 
   for( long beamIndex = 0; beamIndex <= beammmax; beamIndex++ )
     {
-      //double dbeamIndex = double(beamIndex);
-      double dsignb = levels::xpow(beamIndex,1); // pow(-1.,dbeamIndex);
+      double dsignb = levels::xpow(beamIndex,1);
       for ( long msky = 0; msky <= lmax; msky++ )
 	{
-	  //double dmsky = double(msky);
-	  double dsign = levels::xpow(msky,1); // pow(-1.,dmsky), 
+	  double dsign = levels::xpow(msky,1);
 	  double dsb = dsign*dsignb;
 	  estimator.prepare_m( beamIndex, msky );
 	  if ( estimator.canSkip(rthetas[NThetaIndex1-1]) ) continue; // negligible dmm
@@ -956,8 +953,7 @@ void convolver::conviqt_hemiscm_pol_v4( levels::arr3<xcomplex<double> > &tod1, l
 	      int firstl=(firstl1>firstl2) ? firstl1: firstl2;
 	      for ( long ii=firstl; ii<=lmax; ii++ )
 		{
-		  //double dii = double(ii);
-		  double dsignl = levels::xpow(ii,1); // pow(-1.,dii);
+		  double dsignl = levels::xpow(ii,1);
 		  double dlb = dsignb*dsignl;
 		  double dMatrixElementmskypos = dsb*dmm[ii]; // Note that msky in dlm is located to the left of mb and they have to be interchanged in the convolution
 		  double dMatrixElementmskyneg = dsb*dmmneg[ii];
@@ -1012,8 +1008,6 @@ void convolver::conviqt_hemiscm_pol_v4( levels::arr3<xcomplex<double> > &tod1, l
 
 void convolver::conviqt_hemiscm_single( levels::arr3<xcomplex<double> > &tod1, long NThetaIndex1, levels::arr<double> &rthetas )
 {
-  wignergen wgen( lmax, rthetas, conv_acc ), wgen_neg( lmax, rthetas, conv_acc );
-  wigner_estimator estimator( lmax, 100 );
 
   long binElements = 2*lmaxOut + 1;
   long psiElements = beammmax + 1;
@@ -1021,59 +1015,65 @@ void convolver::conviqt_hemiscm_single( levels::arr3<xcomplex<double> > &tod1, l
   Cmm.fill(0.);
   
   Alm< xcomplex<float> > & blmT = b->blmT();
-
   Alm< xcomplex<float> > & slmT = s->slmT();
 
-  for(long beamIndex = 0; beamIndex <= beammmax; beamIndex++)
-    {
-      double dbeamIndex = double(beamIndex);
-      double dsignb = pow(-1.,dbeamIndex);
-      for (long msky = 0; msky <= lmax; msky++)
-	{
-	  double dmsky = double(msky);
-	  double dsign = pow(-1.,dmsky), dsb = dsign*dsignb;
-	  estimator.prepare_m( beamIndex, msky );
-	  if (estimator.canSkip(rthetas[NThetaIndex1-1])) continue; // negligible dmm
-	  wgen.prepare( beamIndex, msky );
-	  wgen_neg.prepare( beamIndex, -msky );
-	  for (long lat=0; lat<NThetaIndex1; lat++)
-	    {
-	      int firstl1, firstl2;
-	      const levels::arr<double> &dmm = wgen.calc( lat, firstl1 );
-	      const levels::arr<double> &dmmneg = wgen_neg.calc( lat, firstl2 );
-	      int firstl=(firstl1>firstl2) ? firstl1: firstl2;
-	      for (long ii=firstl; ii<=lmax; ii++)
-		{
-		  //double dii = double(ii);
-		  //double dsignl = pow(-1.,dii);
-		  //double dlb = dsignb*dsignl;
-		  double dMatrixElementmskypos = dsb*dmm[ii]; // Note that msky in dlm is located to the left of mb and they have to be interchanged in the convolution
-		  double dMatrixElementmskyneg = dsb*dmmneg[ii];
-		  //double dMatrixElementmskypos2 = dlb*dMatrixElementmskyneg;
-		  //double dMatrixElementmskyneg2 = dlb*dMatrixElementmskypos;
-		  double prod1 = slmT(ii,msky).re*blmT(ii,beamIndex).re;
-		  double prod3 = slmT(ii,msky).im*blmT(ii,beamIndex).re;
-		  double prod2 = slmT(ii,msky).im*blmT(ii,beamIndex).im;
-		  double prod4 = slmT(ii,msky).re*blmT(ii,beamIndex).im;
-		  double tmp_1 = prod1 + prod2;
-		  double tmp_2 = prod3 - prod4;
-		  double tmp_3 = prod1 - prod2;
-		  double tmp_4 = -prod3 - prod4;
-		  double xtmp_1 = tmp_1 * dMatrixElementmskypos;
-		  double xtmp_2 = tmp_2 * dMatrixElementmskypos;
-		  double xtmp_3 = dsign*tmp_3 * dMatrixElementmskyneg;
-		  double xtmp_4 = dsign*tmp_4 * dMatrixElementmskyneg;
-		  Cmm( msky+lmaxOut, beamIndex, lat ).real() += xtmp_1;
-		  Cmm( msky+lmaxOut, beamIndex, lat ).imag() += xtmp_2;
-		  if (msky!=0)
-		    {
-		      Cmm( -msky+lmaxOut, beamIndex, lat ).real() += xtmp_3;
-		      Cmm( -msky+lmaxOut, beamIndex, lat ).imag() += xtmp_4;
-		    }
-		}
-	    }
-	}
-    }
+#pragma omp parallel default(shared)
+  {
+    wignergen wgen( lmax, rthetas, conv_acc ), wgen_neg( lmax, rthetas, conv_acc );
+    wigner_estimator estimator( lmax, 100 );
+    
+#pragma omp for schedule(static,1)
+    for(long beamIndex = 0; beamIndex <= beammmax; beamIndex++)
+      {
+	double dbeamIndex = double(beamIndex);
+	double dsignb = pow(-1.,dbeamIndex);
+	for (long msky = 0; msky <= lmax; msky++)
+	  {
+	    double dmsky = double(msky);
+	    double dsign = pow(-1.,dmsky), dsb = dsign*dsignb;
+	    estimator.prepare_m( beamIndex, msky );
+	    if (estimator.canSkip(rthetas[NThetaIndex1-1])) continue; // negligible dmm
+	    wgen.prepare( beamIndex, msky );
+	    wgen_neg.prepare( beamIndex, -msky );
+	    for ( long lat=0; lat<NThetaIndex1; lat++ )
+	      {
+		double & Cmm_pos_re = Cmm( msky+lmaxOut,beamIndex,lat).real();
+		double & Cmm_pos_im = Cmm( msky+lmaxOut,beamIndex,lat).imag();
+		double & Cmm_neg_re = Cmm(-msky+lmaxOut,beamIndex,lat).real();
+		double & Cmm_neg_im = Cmm(-msky+lmaxOut,beamIndex,lat).imag();
+		int firstl1, firstl2;
+		const levels::arr<double> &dmm = wgen.calc( lat, firstl1 );
+		const levels::arr<double> &dmmneg = wgen_neg.calc( lat, firstl2 );
+		int firstl=(firstl1>firstl2) ? firstl1: firstl2;
+		for ( long ii=firstl; ii<=lmax; ii++ )
+		  {
+		    double dMatrixElementmskypos = dsb*dmm[ii]; // Note that msky in dlm is located to the left of mb and they have to be interchanged in the convolution
+		    double dMatrixElementmskyneg = dsb*dmmneg[ii];
+		    double prod1 = slmT(ii,msky).re*blmT(ii,beamIndex).re;
+		    double prod3 = slmT(ii,msky).im*blmT(ii,beamIndex).re;
+		    double prod2 = slmT(ii,msky).im*blmT(ii,beamIndex).im;
+		    double prod4 = slmT(ii,msky).re*blmT(ii,beamIndex).im;
+		    double tmp_1 = prod1 + prod2;
+		    double tmp_2 = prod3 - prod4;
+		    double xtmp_1 = tmp_1 * dMatrixElementmskypos;
+		    double xtmp_2 = tmp_2 * dMatrixElementmskypos;
+		    Cmm_pos_re += xtmp_1;
+		    Cmm_pos_im += xtmp_2;
+		    if ( msky != 0 )
+		      {
+			double tmp_3 = prod1 - prod2;
+			double tmp_4 = -prod3 - prod4;
+			double xtmp_3 = dsign*tmp_3 * dMatrixElementmskyneg;
+			double xtmp_4 = dsign*tmp_4 * dMatrixElementmskyneg;
+			Cmm_neg_re += xtmp_3;
+			Cmm_neg_im += xtmp_4;
+		      }
+		  }
+	      }
+	  }
+      }
+  } // end parallel region
+  
   levels::arr<double> cs(2*lmax+1), sn(2*lmax+1), cs0(binElements), sn0(binElements);
   for (long msky = -lmax; msky <= lmax; msky++)
       {
@@ -1091,9 +1091,6 @@ void convolver::conviqt_hemiscm_single( levels::arr3<xcomplex<double> > &tod1, l
 
 void convolver::conviqt_hemiscm_pol_single( levels::arr3<xcomplex<double> > &tod1, long NThetaIndex1, levels::arr<double> &rthetas )
 {
-  wignergen wgen( lmax, rthetas, conv_acc ), wgen_neg( lmax, rthetas, conv_acc );
-  wigner_estimator estimator( lmax, 100 );
-
   Alm< xcomplex<float> > & blmT = b->blmT();
   Alm< xcomplex<float> > & blmG = b->blmG();
   Alm< xcomplex<float> > & blmC = b->blmC();
@@ -1106,57 +1103,70 @@ void convolver::conviqt_hemiscm_pol_single( levels::arr3<xcomplex<double> > &tod
   long psiElements = beammmax + 1;
   levels::arr3<xcomplex<double> > Cmm(binElements,psiElements,NThetaIndex1);
   Cmm.fill(0.);
-  for ( long beamIndex = 0; beamIndex <= beammmax; beamIndex++ )
-    {
-      double dbeamIndex = double(beamIndex);
-      double dsignb = pow(-1.,dbeamIndex);
-      for ( long msky = 0; msky <= lmax; msky++ )
-	{
-	  double dmsky = double(msky);
-	  double dsign = pow(-1.,dmsky), dsb = dsign*dsignb;
-	  estimator.prepare_m( beamIndex, msky );
-	  if ( estimator.canSkip(rthetas[NThetaIndex1-1]) ) continue; // negligible dmm
-	  wgen.prepare( beamIndex, msky );
-	  wgen_neg.prepare( beamIndex, -msky );
-	  for ( long lat=0; lat<NThetaIndex1; lat++ )
-	    {
-	      int firstl1, firstl2;
-	      const levels::arr<double> &dmm = wgen.calc( lat, firstl1 );
-	      const levels::arr<double> &dmmneg = wgen_neg.calc( lat, firstl2 );
-	      int firstl = (firstl1>firstl2) ? firstl1: firstl2;
-	      for ( long ii=firstl; ii<=lmax; ii++ )
-		{
-		  //double dii = double(ii);
-		  //double dsignl = pow(-1.,dii);
-		  //double dlb = dsignb*dsignl;
-		  double dMatrixElementmskypos = dsb*dmm[ii];//Note that msky in dlm is located to the left of mb and they have to be interchanged in the convolution
-		  double dMatrixElementmskyneg = dsb*dmmneg[ii];
-		  //double dMatrixElementmskypos2 = dlb*dMatrixElementmskyneg;
-		  //double dMatrixElementmskyneg2 = dlb*dMatrixElementmskypos;
-		  double prod1 = slmT(ii,msky).re*blmT(ii,beamIndex).re + slmG(ii,msky).re*blmG(ii,beamIndex).re + slmC(ii,msky).re*blmC(ii,beamIndex).re;
-		  double prod3 = slmT(ii,msky).im*blmT(ii,beamIndex).re + slmG(ii,msky).im*blmG(ii,beamIndex).re + slmC(ii,msky).im*blmC(ii,beamIndex).re;
-		  double prod2 = slmT(ii,msky).im*blmT(ii,beamIndex).im + slmG(ii,msky).im*blmG(ii,beamIndex).im + slmC(ii,msky).im*blmC(ii,beamIndex).im;
-		  double prod4 = slmT(ii,msky).re*blmT(ii,beamIndex).im + slmG(ii,msky).re*blmG(ii,beamIndex).im + slmC(ii,msky).re*blmC(ii,beamIndex).im;
-		  double tmp_1 = prod1 + prod2;
-		  double tmp_2 = prod3 - prod4;
-		  double tmp_3 = prod1 - prod2;
-		  double tmp_4 = -prod3 - prod4;
-		  double xtmp_1 = tmp_1 * dMatrixElementmskypos;
-		  double xtmp_2 = tmp_2 * dMatrixElementmskypos;
-		  double xtmp_3 = dsign*tmp_3 * dMatrixElementmskyneg;
-		  double xtmp_4 = dsign*tmp_4 * dMatrixElementmskyneg;
-		  Cmm(msky+lmaxOut,beamIndex,lat).real() += xtmp_1;
-		  Cmm(msky+lmaxOut,beamIndex,lat).imag() += xtmp_2;
-		  if ( msky != 0 )
-		    {
-		      Cmm(-msky+lmaxOut,beamIndex,lat).real() += xtmp_3;
-		      Cmm(-msky+lmaxOut,beamIndex,lat).imag() += xtmp_4;
-		    }
-		}
-	    }
-	}
-    }
-  
+
+#pragma omp parallel default(shared)
+  {  
+    wignergen wgen( lmax, rthetas, conv_acc ), wgen_neg( lmax, rthetas, conv_acc );
+    wigner_estimator estimator( lmax, 100 );
+
+#pragma omp for schedule(static,1)
+    for ( long beamIndex = 0; beamIndex <= beammmax; beamIndex++ )
+      {
+	double dbeamIndex = double(beamIndex);
+	double dsignb = pow(-1.,dbeamIndex);
+	for ( long msky = 0; msky <= lmax; msky++ )
+	  {
+	    double dmsky = double(msky);
+	    double dsign = pow(-1.,dmsky), dsb = dsign*dsignb;
+	    estimator.prepare_m( beamIndex, msky );
+	    if ( estimator.canSkip(rthetas[NThetaIndex1-1]) ) continue; // negligible dmm
+	    wgen.prepare( beamIndex, msky );
+	    wgen_neg.prepare( beamIndex, -msky );
+	    for ( long lat=0; lat<NThetaIndex1; lat++ )
+	      {
+		double & Cmm_pos_re = Cmm( msky+lmaxOut,beamIndex,lat).real();
+		double & Cmm_pos_im = Cmm( msky+lmaxOut,beamIndex,lat).imag();
+		double & Cmm_neg_re = Cmm(-msky+lmaxOut,beamIndex,lat).real();
+		double & Cmm_neg_im = Cmm(-msky+lmaxOut,beamIndex,lat).imag();
+		int firstl1, firstl2;
+		const levels::arr<double> &dmm = wgen.calc( lat, firstl1 );
+		const levels::arr<double> &dmmneg = wgen_neg.calc( lat, firstl2 );
+		int firstl = (firstl1>firstl2) ? firstl1: firstl2;
+		for ( long ii=firstl; ii<=lmax; ii++ )
+		  {
+		    double dMatrixElementmskypos = dsb*dmm[ii];//Note that msky in dlm is located to the left of mb and they have to be interchanged in the convolution
+		    xcomplex<float> sT = slmT(ii,msky);
+		    xcomplex<float> sG = slmG(ii,msky);
+		    xcomplex<float> sC = slmC(ii,msky);
+		    xcomplex<float> bT = blmT(ii,beamIndex);
+		    xcomplex<float> bG = blmG(ii,beamIndex);
+		    xcomplex<float> bC = blmC(ii,beamIndex);
+		    double prod1 = sT.re*bT.re + sG.re*bG.re + sC.re*bC.re;
+		    double prod3 = sT.im*bT.re + sG.im*bG.re + sC.im*bC.re;
+		    double prod2 = sT.im*bT.im + sG.im*bG.im + sC.im*bC.im;
+		    double prod4 = sT.re*bT.im + sG.re*bG.im + sC.re*bC.im;
+		    double tmp_1 = prod1 + prod2;
+		    double tmp_2 = prod3 - prod4;
+		    double xtmp_1 = tmp_1 * dMatrixElementmskypos;
+		    double xtmp_2 = tmp_2 * dMatrixElementmskypos;
+		    Cmm_pos_re += xtmp_1;
+		    Cmm_pos_im += xtmp_2;
+		    if ( msky != 0 )
+		      {
+			double tmp_3 = prod1 - prod2;
+			double tmp_4 = -prod3 - prod4;
+			double dMatrixElementmskyneg = dsb*dmmneg[ii];
+			double xtmp_3 = dsign*tmp_3 * dMatrixElementmskyneg;
+			double xtmp_4 = dsign*tmp_4 * dMatrixElementmskyneg;
+			Cmm_neg_re += xtmp_3;
+			Cmm_neg_im += xtmp_4;
+		      }
+		  }
+	      }
+	  }
+      } // end of parallel for
+  } // end of parallel region
+
   levels::arr<double> cs(2*lmax+1), sn(2*lmax+1), cs0(binElements), sn0(binElements);
 
   for (long msky = -lmax; msky <= lmax; msky++)
@@ -1178,6 +1188,8 @@ void convolver::conviqt_hemiscm_pol_single( levels::arr3<xcomplex<double> > &tod
 void convolver::todAnnulus_v3(levels::arr3<xcomplex<double> > &tod1, levels::arr3<xcomplex<double> > &Cmm, levels::arr<double> &cs, levels::arr<double> &sn, levels::arr<double> &cs0, levels::arr<double> &sn0, long NThetaIndex1)
 {
   long binElements=2*lmaxOut+1;
+
+#pragma omp parallel for default(shared) schedule(static,100)
   for (long msky = -lmax; msky <= lmax; msky++)
     for (long beamIndex=0; beamIndex<=beammmax; beamIndex++)
       for (long lat=0; lat<NThetaIndex1; lat++)
@@ -1187,6 +1199,8 @@ void convolver::todAnnulus_v3(levels::arr3<xcomplex<double> > &tod1, levels::arr
 	  Cmm(msky+lmaxOut, beamIndex, lat).real() = (cs[msky+lmax]*tmpR + sn[msky+lmax]*tmpI);
 	  Cmm(msky+lmaxOut, beamIndex, lat).imag() = (cs[msky+lmax]*tmpI - sn[msky+lmax]*tmpR);
 	}
+
+#pragma omp parallel for default(shared) schedule(static,1)
   for (long beamIndex=0; beamIndex<=beammmax; beamIndex++)
     for (long lat=0; lat<NThetaIndex1; lat++)
       {
@@ -1197,6 +1211,7 @@ void convolver::todAnnulus_v3(levels::arr3<xcomplex<double> > &tod1, levels::arr
 	for (long msky=0; msky<binElements; msky++) tod1(msky, beamIndex, lat)=Cmsky[msky];
       }
 
+#pragma omp parallel for default(shared) schedule(static,100)
   for (long msky = -lmaxOut; msky <= lmaxOut; msky++)
     for (long beamIndex=0; beamIndex<=beammmax; beamIndex++)
       for (long lat=0; lat<NThetaIndex1; lat++)
@@ -1396,17 +1411,21 @@ void convolver::conviqt_tod_loop_v4(levels::arr<long> &lowerIndex, levels::arr<l
   for (long ii=0; ii<nphi; ii++)
     for (long jj=0; jj<beammmax+1; jj++)
       conviqtarr[ii][jj] = TODAsym(ii, jj, lat);
+
+  // Call weight_ncm once unthreaded to make sure the auxiliary arrays are allocated
+
+  std::vector<double> wgt_temp(max_order+1,0.);
+  weight_ncm( 0., wgt_temp );
   
+#pragma omp parallel for default(shared) schedule(static,1)
   for (int ii=lowerIndex[thetaIndex]; ii>=upperIndex[thetaIndex]; ii--) {
     std::vector<double> wgt1(max_order+1,0.);
-    //levels::arr<double> wgt1(max_order+1,0.);
       
     double frac = (outpntarr[5*ii+1]-theta0)*inv_delta_theta;//Note that the larger the ii the smaller frac is and the smaller itheta0[ii] is.
     frac -= itheta0[ii];
     weight_ncm( frac, wgt1 );
       
     std::vector<double> wgt2(max_order+1,0.);
-    //levels::arr<double> wgt2(max_order+1,0.);
     frac = outpntarr[5*ii]*inv_delta_phi - phioffset;
     frac = levels::fmodulo( frac, double(nphi) );
     int iphi0 = int (frac) - ioffset;
@@ -1418,7 +1437,6 @@ void convolver::conviqt_tod_loop_v4(levels::arr<long> &lowerIndex, levels::arr<l
     double omega = outpntarr[5*ii+2]+halfpi;
     double sinomg = sin(omega), cosomg = cos(omega);
     std::vector<double> cosang(beammmax+1), sinang(beammmax+1);
-    //levels::arr<double> cosang(beammmax+1), sinang(beammmax+1);
     cosang[0] = 1.; sinang[0] = 0.;
     for (long psiIndex=1; psiIndex<=beammmax; psiIndex++) {
       cosang[psiIndex] = cosang[psiIndex-1]*cosomg - sinang[psiIndex-1]*sinomg;
@@ -1434,7 +1452,6 @@ void convolver::conviqt_tod_loop_v4(levels::arr<long> &lowerIndex, levels::arr<l
       double *cang = &(cosang[0]);
       double *sang = &(sinang[0]);
       for (long psiIndex=0; psiIndex<=beammmax; psiIndex++) {
-	//TODValue[ii] += 2.*weight*( cosang[psiIndex]*TODAsym(newphiIndex, psiIndex, lat).real() - sinang[psiIndex]*TODAsym(newphiIndex, psiIndex, lat).imag() );
 	TODValue[ii] += 2.*weight*( (*cang)*(*ca).real() - (*sang)*(*ca).imag() );
 	++ca;
 	++cang;
@@ -1458,6 +1475,12 @@ void convolver::conviqt_tod_loop_pol_v5(levels::arr<long> &lowerIndex, levels::a
     for (long jj=0; jj<beammmax+1; jj++)
       conviqtarr[ii][jj] = TODAsym(ii, jj, lat);
 
+  // Call weight_ncm once unthreaded to make sure the auxiliary arrays are allocated
+
+  std::vector<double> wgt_temp(max_order+1,0.);
+  weight_ncm( 0., wgt_temp );
+  
+#pragma omp parallel for default(shared) schedule(static,1)
   for (int ii=lowerIndex[thetaIndex]; ii>=upperIndex[thetaIndex]; ii--) {
     std::vector<double> wgt1(max_order+1,0.);
     
@@ -1577,12 +1600,23 @@ int convolver::convolve( pointing & pntarr, bool calibrate ) {
   levels::arr<double> pntarr2, outpntarr;
   levels::arr<int> inOffset, outOffset;
   //double deltabeta=pi/Nbeta;
-  double ratiodeltas=halfpi/cores;
+  double ratiodeltas=(halfpi+1e-10)/cores; // Make sure theta=pi doesn't break anything
   double dtheta, newtheta, thetaini=halfpi;
   double countdeltatheta=0.;
   //double coretheta, coredtheta;
   levels::arr<double> corethetaarr(cores), coredthetaarr(cores);
   levels::arr<double> dbeta;
+
+  // Check the angles for conformity
+
+  for ( long i=0; i<totsize; ++i ) {
+    //double phi = pntarr[ 5*i + 0 ];
+    //if ( phi < 0 || phi > twopi ) throw std::runtime_error( "convolver::convolve: Illegal phi: " + std::to_string(phi) + " not in 0..twopi" );
+    double theta = pntarr[ 5*i + 1 ];
+    if ( theta < 0 || theta > pi ) throw std::runtime_error( "convolver::convolve: Illegal theta: " + std::to_string(theta) + " not in 0..pi" );
+    //double psi = pntarr[ 5*i + 2 ];
+    //if ( psi < -twopi || psi > twopi ) throw std::runtime_error( "convolver::convolve: Illegal psi: " + std::to_string(psi) + " not in -2pi..2pi" );
+  }
 
   // distribute the latitudes
 
