@@ -2,6 +2,8 @@
 
 #include <sstream>
 
+#include <cstring>
+
 // This file will contain the actual operations on the sky, no I/O
 
 namespace conviqt {

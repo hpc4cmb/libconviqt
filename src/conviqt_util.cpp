@@ -1,5 +1,7 @@
 #include "conviqt.hpp"
 
+#include <cstring>
+
 namespace conviqt {
 
 void hpsort_DL( levels::arr<double> &ra, levels::arr<long> &brr ) {
