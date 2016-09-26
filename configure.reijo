@@ -1,3 +1,0 @@
-#!/bin/bash
-
-CFLAGS="-O3 -g" CXXFLAGS="-O3 -g" LDFLAGS=-Wl,--no-undefined ./configure --prefix=/home/reijo/software

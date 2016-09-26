@@ -45,10 +45,13 @@ libconviqt_la_LIBADD = \
     $(AM_LIBS)
 
 
-noinst_PROGRAMS = test_libconviqt test_libcconviqt
+noinst_PROGRAMS = test_libconviqt test_libconviqt_mpi test_libcconviqt
 
 test_libconviqt_SOURCES = test_libconviqt.cpp
 test_libconviqt_LDADD = libconviqt.la $(AM_LIBS)
+
+test_libconviqt_mpi_SOURCES = test_libconviqt_mpi.cpp
+test_libconviqt_mpi_LDADD = libconviqt.la $(AM_LIBS)
 
 test_libcconviqt_SOURCES = test_libcconviqt.c
 test_libcconviqt_LDADD = libconviqt.la $(AM_LIBS)
@@ -57,4 +60,4 @@ test_libcconviqt_LDADD = libconviqt.la $(AM_LIBS)
 nodist_EXTRA_test_libcconviqt_SOURCES = dummy.cpp
 
 
-TESTS = test_libconviqt test_libcconviqt test_libconviqt.py
+TESTS = test_libconviqt test_libconviqt_mpi test_libcconviqt test_libconviqt.py
