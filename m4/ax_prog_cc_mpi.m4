@@ -71,6 +71,9 @@
 #   Macro released by the Autoconf Archive. When you make and distribute a
 #   modified version of the Autoconf Macro, you may extend this special
 #   exception to the GPL to apply to your modified version as well.
+#
+#  Revisions:
+#    2016-05-20 : The macro now overrides CC with MPICC
 
 #serial 1
 

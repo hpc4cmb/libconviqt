@@ -11,6 +11,8 @@
 
 #include "cconviqt.h"
 
+#define M_PI 3.14159265358979323846264338327
+
 int main( int argc, char **argv ) {
 
   MPI_Comm comm = MPI_COMM_WORLD;

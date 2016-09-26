@@ -36,29 +36,29 @@ int convolver::set_detector( detector *d ) {
 
   
 void convolver::weight_ncm( double x, levels::arr<double> &wgt ) {
-  int npoints = order + 1;
+  unsigned int npoints = order + 1;
 
   if ( base_wgt.size() == 0 ) {
     // Initialize base_wgt only when needed
     base_wgt.resize(npoints,1);
-    for (int m=0; m<npoints; ++m) {
+    for (int m=0; m<(int)npoints; ++m) {
       for (int n=0; n<m; ++n) base_wgt[m] *= m-n;	
-      for (int n=m+1; n<npoints; ++n) base_wgt[m] *= m-n;	
+      for (int n=m+1; n<(int)npoints; ++n) base_wgt[m] *= m-n;	
     }
-    for (int m=0; m<npoints; ++m) base_wgt[m] = 1./base_wgt[m];
+    for (int m=0; m<(int)npoints; ++m) base_wgt[m] = 1./base_wgt[m];
   } else if ( base_wgt.size() != npoints ) {
     throw std::runtime_error( "base_wgt changed dimensions" );
   }
 
   std::vector<double> temp_wgt(base_wgt);
   double mul1=x;
-  for (int m=1; m<npoints; ++m) {
+  for (int m=1; m<(int)npoints; ++m) {
     temp_wgt[m]*=mul1;
     mul1*=x-m;
   }
 
   double mul2=x-npoints+1;
-  for (int m=1; m<npoints; ++m) {
+  for (int m=1; m<(int)npoints; ++m) {
     temp_wgt[npoints-m-1]*=mul2;
     mul2*=x-npoints+m+1;
   }
@@ -68,29 +68,29 @@ void convolver::weight_ncm( double x, levels::arr<double> &wgt ) {
 
   
 void convolver::weight_ncm( double x, std::vector<double> &wgt ) {
-  int npoints = order + 1;
+  unsigned int npoints = order + 1;
 
   if ( base_wgt.size() == 0 ) {
     // Initialize base_wgt only when needed
     base_wgt.resize(npoints,1);
-    for (int m=0; m<npoints; ++m) {
+    for (int m=0; m<(int)npoints; ++m) {
       for (int n=0; n<m; ++n) base_wgt[m] *= m-n;	
-      for (int n=m+1; n<npoints; ++n) base_wgt[m] *= m-n;	
+      for (int n=m+1; n<(int)npoints; ++n) base_wgt[m] *= m-n;	
     }
-    for (int m=0; m<npoints; ++m) base_wgt[m] = 1./base_wgt[m];
+    for (int m=0; m<(int)npoints; ++m) base_wgt[m] = 1./base_wgt[m];
   } else if ( base_wgt.size() != npoints ) {
     throw std::runtime_error( "base_wgt changed dimensions" );
   }
 
   std::vector<double> temp_wgt(base_wgt);
   double mul1=x;
-  for (int m=1; m<npoints; ++m) {
+  for (int m=1; m<(int)npoints; ++m) {
     temp_wgt[m]*=mul1;
     mul1*=x-m;
   }
   
   double mul2=x-npoints+1;
-  for (int m=1; m<npoints; ++m) {
+  for (int m=1; m<(int)npoints; ++m) {
     temp_wgt[npoints-m-1]*=mul2;
     mul2*=x-npoints+m+1;
   }

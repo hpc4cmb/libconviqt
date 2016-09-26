@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from __future__ import print_function
 from mpi4py import MPI
 import ctypes as ct
 import numpy as np

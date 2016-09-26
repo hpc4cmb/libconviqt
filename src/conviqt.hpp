@@ -72,9 +72,9 @@ class pointing : public levels::arr<double> {
   // row*5 + 3 = signal
   // row*5 * 4 = time
 public :
-  ;
+
 private :
-  ;
+
 };
 
 

@@ -50,8 +50,8 @@ int main( int argc, char **argv ) {
   std::string beamfile( "../data/mb_lfi_30_27_x_rescaled.alm" );
   std::string skyfile( "../data/slm.fits" );
 
-  //b.read( beamlmax, beammmax, pol, beamfile, comm_world );
-  //s.read( lmax, pol, skyfile, fwhm, comm_world );
+  b.read( beamlmax, beammmax, pol, beamfile, comm_world );
+  s.read( lmax, pol, skyfile, fwhm, comm_world );
 
   // Populate the pointing array
 
@@ -64,11 +64,11 @@ int main( int argc, char **argv ) {
   if (rank == ntasks-1) nsamp_world = nsamp_self - (ntasks-1)*nsamp_world;
 
   pnt_self.alloc( 5 * nsamp_self );
-  //pnt_world.alloc( 5 * nsamp_world );
+  pnt_world.alloc( 5 * nsamp_world );
 
-  std::vector<double> theta(nsamp_world);
-  std::vector<double> phi(nsamp_world);
-  std::vector<double> psi(nsamp_world);
+  std::vector<double> theta(nsamp_self);
+  std::vector<double> phi(nsamp_self);
+  std::vector<double> psi(nsamp_self);
 
   long isamp=0;
   for ( long itheta=0; itheta < ntheta; ++itheta ) {
@@ -84,7 +84,7 @@ int main( int argc, char **argv ) {
       }
     }
   }
-  
+
   for (long row=0; row<nsamp_self; ++row) {
     pnt_self[row*5+0] = phi[row]; // longitude
     pnt_self[row*5+1] = theta[row]; // latitude
@@ -93,7 +93,6 @@ int main( int argc, char **argv ) {
     pnt_self[row*5+4] = row; // time
   }
 
-  /*
   for (long row=0; row<nsamp_world; ++row) {
     pnt_world[row*5+0] = phi[row+first_sample]; // longitude
     pnt_world[row*5+1] = theta[row+first_sample]; // latitude
@@ -101,51 +100,40 @@ int main( int argc, char **argv ) {
     pnt_world[row*5+3] = 0; // TOD
     pnt_world[row*5+4] = row+first_sample; // time
   }
-  */
     
   long Nbetafac=10; // 2400
   long MCSamples=0 ;
   long lmaxOut=32; // 3000
   long order=3; // 5
   
-  //std::cout << rank << " : Instantiating convolver." << std::endl;
-
   std::cout << rank << " : Convolving self" << std::endl;
-  //convolver cnv_self( &s, &b, &d, pol, lmax, beammmax, Nbetafac, MCSamples, lmaxOut, order, comm_self );
-  //cnv_self.convolve( pnt_self );
+  convolver cnv_self( &s, &b, &d, pol, lmax, beammmax, Nbetafac, MCSamples, lmaxOut, order, comm_self );
+  cnv_self.convolve( pnt_self );
 
-  /*
-    std::cout << rank << " : Convolving world" << std::endl;
-    convolver cnv_world( &s, &b, &d, pol, lmax, beammmax, Nbetafac, MCSamples, lmaxOut, order, comm_world );
-    cnv_world.convolve( pnt_world );
-  }
-  */
+  std::cout << rank << " : Convolving world" << std::endl;
+  convolver cnv_world( &s, &b, &d, pol, lmax, beammmax, Nbetafac, MCSamples, lmaxOut, order, comm_world );
+  cnv_world.convolve( pnt_world );
 
-  /*
-  int counts[ntasks];
+  std::vector<int> counts(ntasks);
   int my_count = nsamp_world*5;
-  int ierr = MPI_Gather( &my_count, 1, MPI_INT, counts, 1, MPI_INT, 0, comm_world );
+  int ierr = MPI_Gather( &my_count, 1, MPI_INT, counts.data(), 1, MPI_INT, 0, comm_world );
   if (ierr != 0) throw std::runtime_error( "Failed to gather counts" );
-  int displs[ntasks];
+  std::vector<int> displs(ntasks);
   displs[0] = 0;
   for (int irank=1; irank<ntasks; ++irank) displs[irank] = displs[irank-1] + counts[irank-1];
-  */
 
-  /*
   pointing pnt_world_tot;
   pnt_world_tot.alloc( 5*nsamp_self );
-  ierr = MPI_Gatherv( &(pnt_world[0]), nsamp_world*5, MPI_DOUBLE, &(pnt_world_tot[0]), counts, displs, MPI_DOUBLE, 0, comm_world );
+  ierr = MPI_Gatherv( &(pnt_world[0]), nsamp_world*5, MPI_DOUBLE, &(pnt_world_tot[0]), counts.data(), displs.data(), MPI_DOUBLE, 0, comm_world );
   if (ierr != 0) throw std::runtime_error( "Failed to gather convolved data" );
-  */
 
-  /*
   if ( rank == 0 ) {
     
     std::cout << "Convolved TOD:" << std::endl;
     for ( long row=0; row < nsamp_self; ++row ) {
       std::cout << pnt_world_tot[row*5+4] << " " << pnt_world_tot[row*5+3] << " " << pnt_self[row*5+4] << " " << pnt_self[row*5+3] << std::endl;
     }
-    
+
     if ( fabs( pnt_world_tot[ 0*5+3] -  0.8546349819096275 ) > 1e-6 ) {
       std::ostringstream o;
       o << std::setprecision( 16 );
@@ -164,8 +152,8 @@ int main( int argc, char **argv ) {
       o << "Row 15 should be -76.04945574990082, not " << pnt_world_tot[15*5+3] << " or " << pnt_self[15*5+3];
       throw std::runtime_error( o.str() );
     }
+
   }
-  */
     
   if ( MPI_Finalize() ) throw std::runtime_error( "ERROR: Failed to finalize MPI" );
 
