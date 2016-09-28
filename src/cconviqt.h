@@ -50,7 +50,7 @@ extern "C" {
 
   // Convolver
 
-  void *conviqt_convolver_new( void *skyptr, void *beamptr, void *detptr, char pol, long lmax, long beammmax, long lmaxout, long order, MPI_Comm comm );
+  void *conviqt_convolver_new( void *skyptr, void *beamptr, void *detptr, char pol, long lmax, long beammmax, long order, MPI_Comm comm );
 
   int conviqt_convolver_del( void *ptr );
 

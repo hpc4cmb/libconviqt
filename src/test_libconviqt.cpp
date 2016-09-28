@@ -82,12 +82,11 @@ int main( int argc, char **argv ) {
       }
     }
     
-    long lmaxOut=32; // 3000
     long order=3; // 5
     
     std::cout << "Instantiating convolver." << std::endl;
     
-    convolver cnv( &s, &b, &d, pol, lmax, beammmax, lmaxOut, order, comm );
+    convolver cnv( &s, &b, &d, pol, lmax, beammmax, order, comm );
 
     std::cout << "Convolving." << std::endl;
 

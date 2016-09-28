@@ -45,7 +45,6 @@ int main( int argc, char **argv ) {
   long itheta, iphi, ipsi;
   double theta, phi, psi;
   
-  long lmaxOut=32; // 3000
   long order=3; // 5
 
   char calibrate=1;
@@ -120,7 +119,7 @@ int main( int argc, char **argv ) {
       printf( "%li : %f %f %f %f %f\n", row, ppnt[row*5+0], ppnt[row*5+1], ppnt[row*5+2], ppnt[row*5+3], ppnt[row*5+4] );
     }
     
-    cnv = conviqt_convolver_new( sky, beam, det, pol, lmax, beammmax, lmaxOut, order, comm );
+    cnv = conviqt_convolver_new( sky, beam, det, pol, lmax, beammmax, order, comm );
 
     conviqt_convolver_convolve( cnv, pnt, calibrate );
 

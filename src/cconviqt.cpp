@@ -141,7 +141,7 @@ extern "C" {
     }
   }
 
-  void *conviqt_convolver_new( void *skyptr, void *beamptr, void *detptr, char pol, long lmax, long beammmax, long lmaxout, long order, MPI_Comm comm ) {
+  void *conviqt_convolver_new( void *skyptr, void *beamptr, void *detptr, char pol, long lmax, long beammmax, long order, MPI_Comm comm ) {
 
 #ifdef DEBUG
     int size, rank, err;
@@ -160,11 +160,11 @@ extern "C" {
 
     std::cout << "conviqt_convolver_new: Task " << rank << " / " << size << " initializing." << std::endl;
 
-    std::cout << "conviqt_convolver_new called with pol = " << int(pol) << ", lmax = " << lmax << ", beammmax = " << beammmax << ", lmaxout = " << lmaxout << ", order = " << order << std::endl;
+    std::cout << "conviqt_convolver_new called with pol = " << int(pol) << ", lmax = " << lmax << ", beammmax = " << beammmax << ", order = " << order << std::endl;
 #endif
 
-    if ( lmax > LMAXMAX || beammmax > LMAXMAX || lmaxout> LMAXMAX ) {
-      std::cerr << "Suspiciously large convolver parameters: lmax = " << lmax << ", beammax = " << beammmax << ", lmaxout = " << lmaxout << std::endl;
+    if ( lmax > LMAXMAX || beammmax > LMAXMAX ) {
+      std::cerr << "Suspiciously large convolver parameters: lmax = " << lmax << ", beammax = " << beammmax << std::endl;
       return NULL;
     }
 
@@ -172,7 +172,7 @@ extern "C" {
     conviqt::beam *beamref = reinterpret_cast< conviqt::beam * >( beamptr );
     conviqt::detector *detref = reinterpret_cast< conviqt::detector * >( detptr );
 
-    return new(std::nothrow) conviqt::convolver( skyref, beamref, detref, pol, lmax, beammmax, lmaxout, order, comm );
+    return new(std::nothrow) conviqt::convolver( skyref, beamref, detref, pol, lmax, beammmax, order, comm );
   }
 
   int conviqt_convolver_del( void *ptr ) {

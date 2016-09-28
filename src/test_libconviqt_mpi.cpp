@@ -45,7 +45,6 @@ int main( int argc, char **argv ) {
   long lmax=24; // default 5000
   long beamlmax=lmax;
   long beammmax=5; // default 14;
-  long lmaxOut=24; // 3000
   long order=13; // 5
   bool pol=true; // default false
   double fwhm=4.0;
@@ -104,13 +103,13 @@ int main( int argc, char **argv ) {
   }
     
   std::cout << rank << " : Convolving self" << std::endl;
-  convolver cnv_self( &s, &b, &d, pol, lmax, beammmax, lmaxOut, order, comm_self );
+  convolver cnv_self( &s, &b, &d, pol, lmax, beammmax, order, comm_self );
   if (rank == 0) cnv_self.convolve( pnt_self );
 
   MPI_Barrier( comm_world );
 
   std::cout << rank << " : Convolving world" << std::endl;
-  convolver cnv_world( &s, &b, &d, pol, lmax, beammmax, lmaxOut, order, comm_world );
+  convolver cnv_world( &s, &b, &d, pol, lmax, beammmax, order, comm_world );
   cnv_world.convolve( pnt_world );
 
   std::vector<int> counts(ntasks);
@@ -136,7 +135,7 @@ int main( int argc, char **argv ) {
     */
 
     for ( long row=0; row < nsamp_self; ++row ) {
-      if ( fabs( pnt_world_tot[row*5+3] - pnt_self[row*5+3] ) > 1e-4 ) {
+      if ( fabs( pnt_world_tot[row*5+3] - pnt_self[row*5+3] ) > 1e-6 ) {
 	std::ostringstream o;
 	o << std::setprecision( 16 );
 	o << "Row " << row << " ( " << theta[row] << ", " << phi[row] << ", " << psi[row] << ") differs:  " << pnt_self[row*5+3] << " != " << pnt_world_tot[row*5+3];

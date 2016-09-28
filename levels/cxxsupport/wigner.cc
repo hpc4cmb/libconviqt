@@ -603,12 +603,13 @@ void wigner_estimator::prepare_m (int m1_, int m2_)
   }
 
 bool wigner_estimator::canSkip (double theta) const
-  {
+{
+  throw std::runtime_error("wigner_estimator::canSkip is disabled until issues at low lmax are sorted out.");
   if (mbig==lmax) return false; // don't have a good criterion for this case
   double delta = m1*m1 + m2*m2 - std::abs(2.*m1*m2*cos(theta));
   double sth = sin(theta);
   if (abs_approx(sth,0.,1e-7)) return (delta>1.); // close to a pole
   return (((std::sqrt(delta)-epsPow)*cosm1m2/std::abs(sth)) > lmax);
-  }
+}
 
 } // namespace levels

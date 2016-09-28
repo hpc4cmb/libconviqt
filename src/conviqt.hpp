@@ -93,7 +93,7 @@ private :
 
 class convolver {  
 public :
-  convolver( sky *s, beam *b, detector *d, bool pol=false, long lmax=5000, long beammax=14, long lmaxOut=3000, long order=5, MPI_Comm comm=MPI_COMM_WORLD );
+  convolver( sky *s, beam *b, detector *d, bool pol=false, long lmax=5000, long beammax=14, long order=5, MPI_Comm comm=MPI_COMM_WORLD );
   int convolve( pointing & pnt, bool calibrate=true );
   int set_sky( sky *s );
   int set_beam( beam *b );
@@ -111,7 +111,7 @@ private :
   beam *b;
   detector *d;
   bool pol;
-  long lmax, beammmax, lmaxOut, order;
+  long lmax, beammmax, order;
   std::vector<double> base_wgt;
 
   void weight_ncm( double x, levels::arr<double> &wgt );  
@@ -125,19 +125,11 @@ private :
 
   void conviqt_hemiscm_pol_single( levels::arr3<xcomplex<double> > &tod1, long NThetaIndex1, levels::arr<double> &rthetas );
 
-  void conviqt_hemiscm_pol_fill( levels::arr2<xcomplex<double> > &tod1, levels::arr2<xcomplex<double> > &tod2, double beta, levels::arr<long> &effM, long &countdlm, levels::arr<double> &dlmelements);
-
-  void todAnnulus(levels::arr2<xcomplex<double> > &tod1, levels::arr2<xcomplex<double> > &Cmm, levels::arr<double> &cs, levels::arr<double> &sn, levels::arr<double> &cs0, levels::arr<double> &sn0);
-  
   void todAnnulus_v3(levels::arr3<xcomplex<double> > &tod1, levels::arr3<xcomplex<double> > &Cmm, levels::arr<double> &cs, levels::arr<double> &sn, levels::arr<double> &cs0, levels::arr<double> &sn0, long NThetaIndex1);
 
-  void conviqt_tod_loop_fill(levels::arr<long> &lowerIndex, levels::arr<long> &upperIndex, levels::arr<double> &outpntarr, levels::arr2<xcomplex<double> > &TODAsym, long thetaIndex, levels::arr<long> &itheta0, long max_order, double inv_delta_theta, double theta0, double inv_delta_phi, double phioffset, long nphi, long ioffset, long npoints, long ntod, levels::arr<double> &TODValue, levels::arr<int> &iphi0arr, levels::arr2<double> &sinweight, levels::arr2<double> &cosweight);
-    
   void conviqt_tod_loop_v4(levels::arr<long> &lowerIndex, levels::arr<long> &upperIndex, levels::arr<double> &outpntarr, levels::arr3<xcomplex<double> > &TODAsym, long thetaIndex, levels::arr<long> &itheta0, long max_order, double inv_delta_theta, double theta0, double inv_delta_phi, double phioffset, long nphi, long ioffset, long npoints, long ntod, levels::arr<double> &TODValue, long lat);
   
   void conviqt_tod_loop_pol_v5(levels::arr<long> &lowerIndex, levels::arr<long> &upperIndex, levels::arr<double> &outpntarr, levels::arr3<xcomplex<double> > &TODAsym, long thetaIndex, levels::arr<long> &itheta0, long max_order, double inv_delta_theta, double theta0, double inv_delta_phi, double phioffset, long nphi, long ioffset, long npoints, long ntod, levels::arr<double> &TODValue, long lat);
-
-  void conviqt_hemiscm_pol_fast( levels::arr2<xcomplex<double> > &tod1, levels::arr2<xcomplex<double> > &tod2, long &countdlm, levels::arr<long> &effM, levels::arr<double> &dp1 );
 
   void conviqt_tod_loop_read(levels::arr<long> &lowerIndex, levels::arr<long> &upperIndex, levels::arr2<xcomplex<double> > &TODAsym, long thetaIndex, long nphi, long npoints, levels::arr<double> &TODValue, levels::arr<int> &iphi0arr, levels::arr2<double> &sinweight, levels::arr2<double> &cosweight);
 
@@ -156,8 +148,6 @@ private :
   void todgen_v4( long ntod, long ntod2, levels::arr<double> &todTest_arr, levels::arr<double> &timeTest_arr, levels::arr<double> &todTest_arr2, levels::arr<double> &timeTest_arr2, levels::arr<double> &outpntarr );
 
   void preReorderingStep(long ntod, long ntod2, levels::arr<double> &todAll, levels::arr<double> &todTest_arr, levels::arr<double> &todTest_arr2);
-
-  void effMFiller( double beta, levels::arr<long> &effM );
 
   void arrsizecounter( levels::arr<long> &effM, long &numberofdlms );
 
