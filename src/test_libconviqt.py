@@ -171,8 +171,6 @@ nphi = 3
 npsi = 3
 nsamp = ntheta*nphi*npsi
 
-nbetafac = 10
-mcsamples = 0
 lmaxout = 32
 order = 3
 
@@ -220,7 +218,7 @@ for i in range(10):
 
 print( 'Creating convolver' )
 
-convolver = libconviqt.conviqt_convolver_new( sky, beam, detector, pol, lmax, beammmax, nbetafac, mcsamples, lmaxout, order, comm )
+convolver = libconviqt.conviqt_convolver_new( sky, beam, detector, pol, lmax, beammmax, lmaxout, order, comm )
 if convolver == 0: raise Exception( "Failed to instantiate convolver" );
 
 print( 'Convolving data' )
