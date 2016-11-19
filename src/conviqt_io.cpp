@@ -16,22 +16,36 @@ int beam::read( long beamlmax, long beammmax, bool beampol, std::string infile_b
   
   if ( CMULT_VERBOSITY > 1 ) std::cout << "Reading " << infile_beam << " on task = " << rank << std::endl;
 
-  lmax = beamlmax;
-  mmax = beammmax;
   pol = beampol;
+  if ( rank == 0 ) {
+    int lmax_file = -1;
+    int mmax_file = -1;
+    if ( beamlmax < 0 || beammmax < 0 ) {
+      if ( pol )
+	get_almsize_pol( infile_beam, lmax_file, mmax_file );
+      else
+	get_almsize( infile_beam, lmax_file, mmax_file );
+    }
+    lmax = beamlmax;
+    mmax = beammmax;
+    if ( lmax < 0 ) lmax = lmax_file;
+    if ( mmax < 0 ) mmax = mmax_file;
+  }
+  mpiMgr.bcast( lmax );
+  mpiMgr.bcast( mmax );
   fname = infile_beam;
-    
+
   blmT_.Set( lmax, mmax );
   if ( pol ) {
     blmG_.Set( lmax, mmax );
     blmC_.Set( lmax, mmax );
   }
 
-  long blmsize = (beammmax+1)*(beammmax+2) + 2*(beammmax+1)*(lmax-beammmax);
-  
+  long blmsize = (mmax+1)*(mmax+2) + 2*(mmax+1)*(lmax-mmax);
+
   if ( rank == 0 ) {
-    pol ? read_Alm_from_fits( infile_beam, blmT_, blmG_, blmC_, lmax, beammmax )
-      : read_Alm_from_fits( infile_beam, blmT_, lmax, beammmax );
+    pol ? read_Alm_from_fits( infile_beam, blmT_, blmG_, blmC_, lmax, mmax )
+      : read_Alm_from_fits( infile_beam, blmT_, lmax, mmax );
     if ( CMULT_VERBOSITY > 1 ) std::cout << "Done reading beam alms on task = " << rank << std::endl;
   }
 
@@ -40,7 +54,7 @@ int beam::read( long beamlmax, long beammmax, bool beampol, std::string infile_b
     mpiMgr.bcastRaw( &blmG_(0,0).re, blmsize, 0 );
     mpiMgr.bcastRaw( &blmC_(0,0).re, blmsize, 0 );
   }
-  
+
   return 0;
 }
 
@@ -68,9 +82,22 @@ int sky::read( long skylmax, bool skypol, std::string infile_sky, double fwhm_de
   
   if ( CMULT_VERBOSITY > 1 ) std::cout << "Reading " << infile_sky << " on task = " << rank << std::endl;
 
-  lmax = skylmax;
-  fname = infile_sky;
   pol = skypol;
+  if ( rank == 0 ) {
+    if ( skylmax < 0 ) {
+      int lmax_file = -1;
+      int mmax_file = -1;
+      if ( pol )
+	get_almsize_pol( infile_sky, lmax_file, mmax_file );
+      else
+	get_almsize( infile_sky, lmax_file, mmax_file );
+      lmax = lmax_file;
+    } else {
+      lmax = skylmax;
+    }
+  }
+  mpiMgr.bcast( lmax );
+  fname = infile_sky;
   fwhm_deconv = fwhm_deconv_sky;
   
   slmT_.Set( lmax, lmax );

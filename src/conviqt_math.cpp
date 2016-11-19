@@ -1087,6 +1087,21 @@ void convolver::arrFillingcm_v2( long ntod, levels::arr<double> &timeTest_arr, l
 
 int convolver::convolve( pointing & pntarr, bool calibrate ) {
 
+  int lmax_sky = s->get_lmax();
+  int lmax_beam = b->get_lmax();
+  if (lmax < 0) {
+    lmax = lmax_sky < lmax_beam ? lmax_sky : lmax_beam;
+  } else if ( lmax > lmax_sky || lmax > lmax_beam ) {
+    throw std::runtime_error( "Convolver lmax exceeds input expansion order." );
+  }
+
+  int mmax_beam = b->get_mmax();
+  if (beammmax < 0) {
+    beammmax = mmax_beam;
+  } else if ( beammmax > mmax_beam ) {
+    throw std::runtime_error( "Convolver mmax exceeds input expansion order." );
+  }
+
   long totsize = pntarr.size()/5;
 
   // Assign a running index across the communicator to the last column of pntarr

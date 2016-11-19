@@ -16,6 +16,10 @@ extern "C" {
 
   int conviqt_beam_read( void *ptr, long beamlmax, long beammmax, char pol, char *infile_beam, MPI_Comm comm );
 
+  int conviqt_beam_lmax( void *ptr );
+
+  int conviqt_beam_mmax( void *ptr );
+
   // Sky
 
   void *conviqt_sky_new();
@@ -23,6 +27,10 @@ extern "C" {
   int conviqt_sky_del( void *ptr );
   
   int conviqt_sky_read( void *ptr, long skylmax, char pol, char *infile_sky, double fwhm_deconv_sky, MPI_Comm comm );
+
+  int conviqt_sky_lmax( void *ptr );
+
+  int conviqt_sky_mmax( void *ptr );
 
   // Detector
 

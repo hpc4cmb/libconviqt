@@ -31,6 +31,24 @@ extern "C" {
     return 0;
   }
 
+  int conviqt_beam_lmax( void *ptr ) {
+    try {
+      conviqt::beam *ref = reinterpret_cast< conviqt::beam * >( ptr );
+      return ref->get_lmax();
+    } catch (...) {
+      return -1;
+    }
+  }
+
+  int conviqt_beam_mmax( void *ptr ) {
+    try {
+      conviqt::beam *ref = reinterpret_cast< conviqt::beam * >( ptr );
+      return ref->get_mmax();
+    } catch (...) {
+      return -1;
+    }
+  }
+
   void *conviqt_sky_new() { return new(std::nothrow) conviqt::sky; }
 
   int conviqt_sky_del( void *ptr ) {
@@ -53,6 +71,15 @@ extern "C" {
     return 0;
   }
   
+  int conviqt_sky_lmax( void *ptr ) {
+    try {
+      conviqt::beam *ref = reinterpret_cast< conviqt::beam * >( ptr );
+      return ref->get_lmax();
+    } catch (...) {
+      return -1;
+    }
+  }
+
   void *conviqt_detector_new() { return new(std::nothrow) conviqt::detector; }
 
   void *conviqt_detector_new_with_id( char *det_id ) { return new(std::nothrow) conviqt::detector(det_id); }
