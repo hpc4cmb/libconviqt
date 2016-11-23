@@ -73,11 +73,31 @@ extern "C" {
   
   int conviqt_sky_lmax( void *ptr ) {
     try {
-      conviqt::beam *ref = reinterpret_cast< conviqt::beam * >( ptr );
+      conviqt::sky *ref = reinterpret_cast< conviqt::sky * >( ptr );
       return ref->get_lmax();
     } catch (...) {
       return -1;
     }
+  }
+
+  int conviqt_sky_remove_monopole( void *ptr ) {
+    try {
+      conviqt::sky *ref = reinterpret_cast< conviqt::sky * >( ptr );
+      ref->remove_monopole();
+    } catch (...) {
+      return -1;
+    }
+    return 0;
+  }
+
+  int conviqt_sky_remove_dipole( void *ptr ) {
+    try {
+      conviqt::sky *ref = reinterpret_cast< conviqt::sky * >( ptr );
+      ref->remove_dipole();
+    } catch (...) {
+      return -1;
+    }
+    return 0;
   }
 
   void *conviqt_detector_new() { return new(std::nothrow) conviqt::detector; }
