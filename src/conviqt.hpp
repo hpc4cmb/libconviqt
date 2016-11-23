@@ -43,8 +43,8 @@ public :
   Alm< xcomplex<float> > & blmT( void );
   Alm< xcomplex<float> > & blmG( void );
   Alm< xcomplex<float> > & blmC( void );
-  int get_lmax() { return lmax; }
-  int get_mmax() { return mmax; }
+  int get_lmax( void ) { return lmax; }
+  int get_mmax( void ) { return mmax; }
 private :
   Alm< xcomplex<float> > blmT_, blmG_, blmC_;
   long lmax, mmax;
@@ -58,7 +58,7 @@ public :
   Alm< xcomplex<float> > & slmT( void );
   Alm< xcomplex<float> > & slmG( void );
   Alm< xcomplex<float> > & slmC( void );
-  int get_lmax() { return lmax; }
+  int get_lmax( void ) { return lmax; }
   void remove_monopole( void );
   void remove_dipole( void );
 private :

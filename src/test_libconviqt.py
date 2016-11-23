@@ -93,6 +93,12 @@ libconviqt.conviqt_sky_read.argtypes = [
 libconviqt.conviqt_sky_lmax.restype = ct.c_int
 libconviqt.conviqt_sky_lmax.argtypes = [ct.c_void_p]
 
+libconviqt.conviqt_sky_remove_monopole.restype = ct.c_int
+libconviqt.conviqt_sky_remove_monopole.argtypes = [ct.c_void_p]
+
+libconviqt.conviqt_sky_remove_dipole.restype = ct.c_int
+libconviqt.conviqt_sky_remove_dipole.argtypes = [ct.c_void_p]
+
 # Detector functions
 
 libconviqt.conviqt_detector_new.restype = ct.c_void_p
@@ -196,6 +202,8 @@ sky = libconviqt.conviqt_sky_new()
 sky_auto = libconviqt.conviqt_sky_new()
 err = libconviqt.conviqt_sky_read( sky, lmax, pol, skyfile.encode(), fwhm, comm )
 err = libconviqt.conviqt_sky_read( sky_auto, -1, pol, skyfile.encode(), fwhm, comm )
+err = libconviqt.conviqt_sky_remove_monopole( sky_auto )
+err = libconviqt.conviqt_sky_remove_dipole( sky_auto )
 if err != 0: raise Exception( 'Failed to load ' + skyfile )
 
 sky_lmax = libconviqt.conviqt_sky_lmax( sky )

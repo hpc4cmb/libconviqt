@@ -95,6 +95,8 @@ int main( int argc, char **argv ) {
     
     conviqt_beam_read( beam, beamlmax, beammmax, pol, beamfile, comm );
     conviqt_sky_read( sky, lmax, pol, skyfile, fwhm, comm );
+    conviqt_sky_remove_monopole( sky );
+    conviqt_sky_remove_dipole( sky );
 
     // Populate the pointing array
 
