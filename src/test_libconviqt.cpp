@@ -55,6 +55,8 @@ int main( int argc, char **argv ) {
     
     b.read( beamlmax, beammmax, pol, beamfile, comm );
     s.read( lmax, pol, skyfile, fwhm, comm );
+    s.remove_monopole();
+    s.remove_dipole();
 
     // Populate the pointing array
 

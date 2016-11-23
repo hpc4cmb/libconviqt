@@ -8,6 +8,21 @@
 
 namespace conviqt {
 
+void sky::remove_monopole( void ) {
+  if (slmT_.Lmax() >= 0) {
+    slmT_(0,0) = 0;
+  }
+}
+
+void sky::remove_dipole( void ) {
+  if (slmT_.Lmax() >= 1) {
+    slmT_(1,0) = 0;
+    if (slmT_.Mmax() >= 1) {
+      slmT_(1,1) = 0;
+    }
+  }
+}
+
 convolver::convolver( sky *s, beam *b, detector *d, bool pol, long lmax, long beammmax, long order, MPI_Comm comm ) : s(s), b(b), d(d), pol(pol), lmax(lmax), beammmax(beammmax), order(order) {
   mpiMgr = MPI_Manager( comm );
   cores = mpiMgr.num_ranks();

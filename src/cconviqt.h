@@ -30,7 +30,9 @@ extern "C" {
 
   int conviqt_sky_lmax( void *ptr );
 
-  int conviqt_sky_mmax( void *ptr );
+  int conviqt_sky_remove_monopole( void *ptr );
+
+  int conviqt_sky_remove_dipole( void *ptr );
 
   // Detector
 
