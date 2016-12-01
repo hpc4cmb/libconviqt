@@ -544,7 +544,6 @@ void convolver::conviqt_hemiscm_pol_v4( levels::arr3<xcomplex<double> > &tod1, l
 
 void convolver::conviqt_hemiscm_single( levels::arr3<xcomplex<double> > &tod1, long NThetaIndex1, levels::arr<double> &rthetas )
 {
-
   long binElements = 2*lmax + 1;
   long psiElements = beammmax + 1;
   levels::arr3<xcomplex<double> > Cmm(binElements,psiElements,NThetaIndex1);
@@ -627,6 +626,11 @@ void convolver::conviqt_hemiscm_single( levels::arr3<xcomplex<double> > &tod1, l
 
 void convolver::conviqt_hemiscm_pol_single( levels::arr3<xcomplex<double> > &tod1, long NThetaIndex1, levels::arr<double> &rthetas )
 {
+  long binElements = 2*lmax + 1;
+  long psiElements = beammmax + 1;
+  levels::arr3<xcomplex<double> > Cmm(binElements,psiElements,NThetaIndex1);
+  Cmm.fill(0.);
+
   Alm< xcomplex<float> > & blmT = b->blmT();
   Alm< xcomplex<float> > & blmG = b->blmG();
   Alm< xcomplex<float> > & blmC = b->blmC();
@@ -634,11 +638,6 @@ void convolver::conviqt_hemiscm_pol_single( levels::arr3<xcomplex<double> > &tod
   Alm< xcomplex<float> > & slmG = s->slmG();
   Alm< xcomplex<float> > & slmC = s->slmC();
   levels::arr<double> cs(2*lmax+1), sn(2*lmax+1), cs0(binElements), sn0(binElements);
-
-  long binElements = 2*lmax + 1;
-  long psiElements = beammmax + 1;
-  levels::arr3<xcomplex<double> > Cmm(binElements,psiElements,NThetaIndex1);
-  Cmm.fill(0.);
 
 #pragma omp parallel default(shared)
   {  
