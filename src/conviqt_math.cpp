@@ -371,7 +371,7 @@ void convolver::conviqt_hemiscm_v4( levels::arr3<xcomplex<double> > &tod1, level
     for(long beamIndex = 0; beamIndex <= beammmax; beamIndex++)
       {
         double dsignb = levels::xpow(beamIndex, 1);
-#pragma omp for schedule(static,1)
+#pragma omp for schedule(static,8)
         for (long msky = 0; msky <= lmax; msky++)
           {
             double dsign = levels::xpow(msky, 1);
@@ -425,7 +425,7 @@ void convolver::conviqt_hemiscm_v4( levels::arr3<xcomplex<double> > &tod1, level
               }
           }
       }
-#pragma omp for schedule(static,1)
+#pragma omp for schedule(static,8)
     for (long msky = -lmax; msky <= lmax; msky++)
       {
 	double arg=-halfpi*msky;
@@ -466,7 +466,7 @@ void convolver::conviqt_hemiscm_pol_v4( levels::arr3<xcomplex<double> > &tod1, l
     for( long beamIndex = 0; beamIndex <= beammmax; beamIndex++ )
       {
         double dsignb = levels::xpow(beamIndex, 1);
-#pragma omp for schedule(static,1)
+#pragma omp for schedule(static,8)
         for ( long msky = 0; msky <= lmax; msky++ )
           {
             double dsign = levels::xpow(msky, 1);
@@ -520,7 +520,7 @@ void convolver::conviqt_hemiscm_pol_v4( levels::arr3<xcomplex<double> > &tod1, l
               }
           }
       }
-#pragma omp for schedule(static,1)
+#pragma omp for schedule(static,8)
   for (long msky = -lmax; msky <= lmax; msky++)
       {
 	double arg=-halfpi*msky;
@@ -556,7 +556,7 @@ void convolver::conviqt_hemiscm_single( levels::arr3<xcomplex<double> > &tod1, l
     for(long beamIndex = 0; beamIndex <= beammmax; beamIndex++)
       {
 	double dsignb = levels::xpow(beamIndex, 1);
-#pragma omp for schedule(static,1)
+#pragma omp for schedule(static,8)
 	for (long msky = 0; msky <= lmax; msky++)
 	  {
 	    double dsign = levels::xpow(msky, 1);
@@ -602,7 +602,7 @@ void convolver::conviqt_hemiscm_single( levels::arr3<xcomplex<double> > &tod1, l
 	      }
 	  }
       }
-#pragma omp for schedule(static,1)
+#pragma omp for schedule(static,8)
   for (long msky = -lmax; msky <= lmax; msky++)
       {
 	double arg = -halfpi*msky;
@@ -640,7 +640,7 @@ void convolver::conviqt_hemiscm_pol_single( levels::arr3<xcomplex<double> > &tod
     for ( long beamIndex = 0; beamIndex <= beammmax; beamIndex++ )
       {
         double dsignb = levels::xpow(beamIndex, 1);
-#pragma omp for schedule(static,1)
+#pragma omp for schedule(static,8)
 	for ( long msky = 0; msky <= lmax; msky++ )
 	  {
             double dsign = levels::xpow(msky, 1);
@@ -693,7 +693,7 @@ void convolver::conviqt_hemiscm_pol_single( levels::arr3<xcomplex<double> > &tod
 	  }
       } // end of parallel for
 
-#pragma omp for schedule(static,1)
+#pragma omp for schedule(static,8)
     for (long msky = -lmax; msky <= lmax; msky++)
       {
 	double arg=-halfpi*msky;
@@ -715,7 +715,7 @@ void convolver::todAnnulus_v3(levels::arr3<xcomplex<double> > &tod1, levels::arr
 
 #pragma omp parallel default(shared)
   {  
-#pragma omp for schedule(static,1)
+#pragma omp for schedule(static,8)
     for (long msky = -lmax; msky <= lmax; msky++)
       {
         for (long beamIndex=0; beamIndex<=beammmax; beamIndex++)
@@ -741,7 +741,7 @@ void convolver::todAnnulus_v3(levels::arr3<xcomplex<double> > &tod1, levels::arr
             for (long msky=0; msky<binElements; msky++) tod1(msky, beamIndex, lat)=Cmsky[msky];
           }
       } // end of parallel for
-#pragma omp for schedule(static,1)
+#pragma omp for schedule(static,8)
     for (long msky = -lmax; msky <= lmax; msky++)
       {
         for (long beamIndex=0; beamIndex<=beammmax; beamIndex++)
