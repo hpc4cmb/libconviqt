@@ -367,18 +367,16 @@ void convolver::conviqt_hemiscm_v4( levels::arr3<xcomplex<double> > &tod1, level
 #pragma omp parallel default(shared)
   {
     wignergen wgen(lmax,rthetas,conv_acc), wgen_neg(lmax,rthetas,conv_acc);
-    wigner_estimator estimator(lmax,100);
-
-#pragma omp for schedule(static,1)
+    //wigner_estimator estimator(lmax,100);
     for(long beamIndex = 0; beamIndex <= beammmax; beamIndex++)
       {
-        double dbeamIndex = double(beamIndex);
-        double dsignb = pow(-1.,dbeamIndex);
+        double dsignb = levels::xpow(beamIndex, 1);
+#pragma omp for schedule(static,1)
         for (long msky = 0; msky <= lmax; msky++)
           {
-            double dmsky = double(msky);
-            double dsign = pow(-1.,dmsky), dsb=dsign*dsignb;
-            estimator.prepare_m( beamIndex, msky );
+            double dsign = levels::xpow(msky, 1);
+            double dsb = dsign*dsignb;
+            //estimator.prepare_m( beamIndex, msky );
             //if ( estimator.canSkip(rthetas[NThetaIndex1-1]) ) continue; // negligible dmm
             wgen.prepare(beamIndex,msky);
             wgen_neg.prepare( beamIndex, -msky );
@@ -388,8 +386,7 @@ void convolver::conviqt_hemiscm_v4( levels::arr3<xcomplex<double> > &tod1, level
                 const levels::arr<double> &dmm=wgen.calc( lat, firstl1 );
                 const levels::arr<double> &dmmneg=wgen_neg.calc( lat, firstl2 );
                 int firstl=(firstl1>firstl2) ? firstl1: firstl2;
-                double dlb = dsignb;
-                if ( firstl % 2 == 0 ) dlb = -dlb;
+                double dlb = -levels::xpow(firstl, dsignb);
                 for ( long ii=firstl; ii<=lmax; ii++ )
                   {
                     dlb = -dlb;
@@ -465,17 +462,16 @@ void convolver::conviqt_hemiscm_pol_v4( levels::arr3<xcomplex<double> > &tod1, l
 #pragma omp parallel default(shared)
   {
     wignergen wgen(lmax,rthetas,conv_acc), wgen_neg(lmax,rthetas,conv_acc);
-    wigner_estimator estimator(lmax,100);
-
-#pragma omp for schedule(static,1)
+    //wigner_estimator estimator(lmax,100);
     for( long beamIndex = 0; beamIndex <= beammmax; beamIndex++ )
       {
-        double dsignb = levels::xpow(beamIndex,1);
+        double dsignb = levels::xpow(beamIndex, 1);
+#pragma omp for schedule(static,1)
         for ( long msky = 0; msky <= lmax; msky++ )
           {
-            double dsign = levels::xpow(msky,1);
+            double dsign = levels::xpow(msky, 1);
             double dsb = dsign*dsignb;
-            estimator.prepare_m( beamIndex, msky );
+            //estimator.prepare_m( beamIndex, msky );
             //if ( estimator.canSkip(rthetas[NThetaIndex1-1]) ) continue; // negligible dmm
             wgen.prepare( beamIndex, msky );
             wgen_neg.prepare( beamIndex, -msky );
@@ -485,8 +481,7 @@ void convolver::conviqt_hemiscm_pol_v4( levels::arr3<xcomplex<double> > &tod1, l
                 const levels::arr<double> &dmm = wgen.calc( lat, firstl1 );
                 const levels::arr<double> &dmmneg = wgen_neg.calc( lat, firstl2 );
                 int firstl=(firstl1>firstl2) ? firstl1: firstl2;
-                double dlb = dsignb;
-                if ( firstl % 2 == 0 ) dlb = -dlb;
+                double dlb = -levels::xpow(firstl, dsignb);
                 for ( long ii=firstl; ii<=lmax; ii++ )
                   {
                     dlb = -dlb;
@@ -556,18 +551,17 @@ void convolver::conviqt_hemiscm_single( levels::arr3<xcomplex<double> > &tod1, l
 #pragma omp parallel default(shared)
   {
     wignergen wgen( lmax, rthetas, conv_acc ), wgen_neg( lmax, rthetas, conv_acc );
-    wigner_estimator estimator( lmax, 100 );
+    //wigner_estimator estimator( lmax, 100 );
     
-#pragma omp for schedule(static,1)
     for(long beamIndex = 0; beamIndex <= beammmax; beamIndex++)
       {
-	double dbeamIndex = double(beamIndex);
-	double dsignb = pow(-1., dbeamIndex);
+	double dsignb = levels::xpow(beamIndex, 1);
+#pragma omp for schedule(static,1)
 	for (long msky = 0; msky <= lmax; msky++)
 	  {
-	    double dmsky = double(msky);
-	    double dsign = pow(-1., dmsky), dsb = dsign*dsignb;
-	    estimator.prepare_m( beamIndex, msky );
+	    double dsign = levels::xpow(msky, 1);
+            double dsb = dsign*dsignb;
+	    //estimator.prepare_m( beamIndex, msky );
 	    //if ( estimator.canSkip(rthetas[NThetaIndex1-1]) ) continue; // negligible dmm
 	    wgen.prepare( beamIndex, msky );
 	    wgen_neg.prepare( beamIndex, -msky );
@@ -642,27 +636,25 @@ void convolver::conviqt_hemiscm_pol_single( levels::arr3<xcomplex<double> > &tod
 #pragma omp parallel default(shared)
   {  
     wignergen wgen( lmax, rthetas, conv_acc ), wgen_neg( lmax, rthetas, conv_acc );
-    wigner_estimator estimator( lmax, 100 );
-
-#pragma omp for schedule(static,1)
+    //wigner_estimator estimator( lmax, 100 );
     for ( long beamIndex = 0; beamIndex <= beammmax; beamIndex++ )
       {
-	double dbeamIndex = double(beamIndex);
-	double dsignb = pow(-1.,dbeamIndex);
+        double dsignb = levels::xpow(beamIndex, 1);
+#pragma omp for schedule(static,1)
 	for ( long msky = 0; msky <= lmax; msky++ )
 	  {
-	    double dmsky = double(msky);
-	    double dsign = pow(-1.,dmsky), dsb = dsign*dsignb;
-	    estimator.prepare_m( beamIndex, msky );
+            double dsign = levels::xpow(msky, 1);
+            double dsb = dsign*dsignb;
+	    //estimator.prepare_m( beamIndex, msky );
 	    //if ( estimator.canSkip(rthetas[NThetaIndex1-1]) ) continue; // negligible dmm
 	    wgen.prepare( beamIndex, msky );
 	    wgen_neg.prepare( beamIndex, -msky );
 	    for ( long lat=0; lat<NThetaIndex1; lat++ )
 	      {
-		double & Cmm_pos_re = Cmm( msky+lmax,beamIndex,lat).real();
-		double & Cmm_pos_im = Cmm( msky+lmax,beamIndex,lat).imag();
-		double & Cmm_neg_re = Cmm(-msky+lmax,beamIndex,lat).real();
-		double & Cmm_neg_im = Cmm(-msky+lmax,beamIndex,lat).imag();
+		double & Cmm_pos_re = Cmm( msky+lmax, beamIndex, lat).real();
+		double & Cmm_pos_im = Cmm( msky+lmax, beamIndex, lat).imag();
+		double & Cmm_neg_re = Cmm(-msky+lmax, beamIndex, lat).real();
+		double & Cmm_neg_im = Cmm(-msky+lmax, beamIndex, lat).imag();
 		int firstl1, firstl2;
 		const levels::arr<double> &dmm = wgen.calc( lat, firstl1 );
 		const levels::arr<double> &dmmneg = wgen_neg.calc( lat, firstl2 );
