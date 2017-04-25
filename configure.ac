@@ -60,9 +60,6 @@ dnl +------------------------------------------------
 dnl | This is a C++ project...
 dnl +------------------------------------------------
 AC_LANG([C++])
-AC_LANG_PUSH([C])
-AX_OPENMP
-AC_LANG_POP([C])
 
 dnl +------------------------------------------------
 dnl | ... that will one day be OpenMP parallel
@@ -80,7 +77,6 @@ dnl +------------------------------------------------
 dnl | Check for CFITSIO
 dnl +------------------------------------------------
 AC_LANG_PUSH([C])
-AX_OPENMP
 ACX_CFITSIO([], [AC_MSG_ERROR([Could not find the CFITSIO library!])])
 AC_LANG_POP([C])
 

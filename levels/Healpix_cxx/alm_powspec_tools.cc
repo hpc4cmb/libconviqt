@@ -56,7 +56,7 @@ template<typename T> void create_alm
       double rms_tt = ::sqrt(powspec.tt(l));
     double zeta1_r = rng.rand_gauss();
     alm(l,0) = T(zeta1_r * rms_tt);
-    for (int m=1; m<=::min(l,mmax); ++m)
+    for (int m=1; m <= std::min(l,mmax); ++m)
       {
       zeta1_r = rng.rand_gauss()*hsqrt2;
       double zeta1_i = rng.rand_gauss()*hsqrt2;
@@ -94,7 +94,7 @@ template<typename T> void create_alm_pol
     double zeta1_r = rng.rand_gauss();
     almT(l,0) = T(zeta1_r * rms_tt);
     almG(l,0) = T(zeta1_r * rms_g1);
-    for (int m=1; m<=::min(l,mmax); ++m)
+    for (int m=1; m <= std::min(l,mmax); ++m)
       {
       zeta1_r = rng.rand_gauss()*hsqrt2;
       double zeta1_i = rng.rand_gauss()*hsqrt2;
@@ -122,7 +122,7 @@ template<typename T> void create_alm_pol
     almG(l,0) += T(rng.rand_gauss()*rms_g2);
     almC(l,0)  = T(rng.rand_gauss()*rms_cc);
 
-    for (int m=1; m<=::min(l,mmax); ++m)
+    for (int m=1; m <= std::min(l,mmax); ++m)
       {
       double zeta2_r = rng.rand_gauss()*hsqrt2;
       double zeta2_i = rng.rand_gauss()*hsqrt2;
@@ -158,7 +158,7 @@ template<typename T> void extract_crosspowspec
   for (int l=0; l<=alm1.Lmax(); ++l)
     {
     tt[l] = alm1(l,0).re*alm2(l,0).re;
-    int limit = ::min(l,alm1.Mmax());
+    int limit = std::min(l,alm1.Mmax());
     for (int m=1; m<=limit; ++m)
       tt[l] += 2 * (alm1(l,m).re*alm2(l,m).re + alm1(l,m).im*alm2(l,m).im);
     tt[l] /= (2*l+1);
@@ -209,7 +209,7 @@ template<typename T> void extract_crosspowspec
     tg[l] = almT1(l,0).re*almG2(l,0).re;
     tc[l] = almT1(l,0).re*almC2(l,0).re;
     gc[l] = almG1(l,0).re*almC2(l,0).re;
-    int limit = ::min(l,almT1.Mmax());
+    int limit = std::min(l,almT1.Mmax());
     for (int m=1; m<=limit; ++m)
       {
       tt[l] += 2 * (almT1(l,m).re*almT2(l,m).re + almT1(l,m).im*almT2(l,m).im);
