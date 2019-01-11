@@ -21,7 +21,8 @@
  *   - there is no longer a static instance, extern MPI_Manager mpiMgr, instead, 
  *     calling codes must instantiate their own managers and optionally supply the
  *     communicator
- * 2014-12-01 - Reijo Keskitalo 
+ * 2014-12-01 - Reijo Keskitalo
+ * - added MPI_Manager.Wtime() on 2018-12-13 RK
  */
 
 /*
@@ -41,6 +42,7 @@
 #ifndef USE_MPI
 #include <cstring>
 #include <cstdlib>
+#include <ctime>
 #endif
 #include "ls_mpi_support.h"
 
@@ -177,6 +179,9 @@ void MPI_Manager::abort() const
 void MPI_Manager::barrier() const
   { MPI_Barrier(LS_COMM); }
 
+double MPI_Manager::Wtime()
+ { return MPI_Wtime(); }
+
 #else
 
 MPI_Manager::MPI_Manager ()
@@ -187,6 +192,9 @@ void MPI_Manager::abort() const
   { exit(1); }
 
 void MPI_Manager::barrier() const {}
+
+double MPI_Manager::Wtime()
+  { return ((double) clock()) / CLOCKS_PER_SEC; }
 
 #endif
 

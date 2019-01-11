@@ -82,6 +82,7 @@ class MPI_Manager
     MPI_Comm comm() const { return comm_; }
 
     void barrier() const;
+    double Wtime();
 
     void calcShare (int64 glo, int64 ghi, int64 &lo, int64 &hi) const
       { calcShareGeneral(glo,ghi,num_ranks_,rank_,lo,hi); }
