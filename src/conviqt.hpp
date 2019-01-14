@@ -126,7 +126,7 @@ private :
         t_interpolTOD_arrTestcm_pol_v4, t_conviqt_hemiscm_pol_v4, t_conviqt_hemiscm_pol_single,
         t_conviqt_tod_loop_pol_v5, t_todAnnulus_v3,
         t_wigner_init, t_wigner_prepare, t_wigner_calc,
-        t_lat_iter, t_sincos_iter;
+        t_lat_iter, t_sincos_iter, t_alltoall;
 
     long n_convolve, n_todgen_v4, n_arrFillingcm_v2, n_interpolTOD_arrTestcm_v4,
         n_itheta0SetUp, n_ithetacalc, n_conviqt_tod_loop_v4, n_weight_ncm,
@@ -134,7 +134,7 @@ private :
         n_interpolTOD_arrTestcm_pol_v4, n_conviqt_hemiscm_pol_v4, n_conviqt_hemiscm_pol_single,
         n_conviqt_tod_loop_pol_v5, n_todAnnulus_v3,
         n_wigner_init, n_wigner_prepare, n_wigner_calc,
-        n_lat_iter, n_sincos_iter;
+        n_lat_iter, n_sincos_iter, n_alltoall;
 
     void weight_ncm( double x, levels::arr<double> &wgt );
     void weight_ncm( double x, std::vector<double> &wgt );

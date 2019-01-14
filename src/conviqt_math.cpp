@@ -91,6 +91,8 @@ convolver::convolver(sky *s, beam *b, detector *d, bool pol,
 
     t_convolve = 0;
     n_convolve = 0;
+    t_alltoall = 0;
+    n_alltoall = 0;
     
     t_todgen_v4 = 0;
     t_arrFillingcm_v2 = 0;
@@ -1533,7 +1535,11 @@ int convolver::convolve(pointing & pntarr, bool calibrate) {
         countdeltatheta += sin(newtheta + dtheta / 2.) * dtheta;
     }
     fillingBetaSeg(pntarr, totsize, ratiodeltas, corethetaarr, inBetaSeg);
+    mpiMgr.barrier();
+    double t1 = mpiMgr.Wtime();
     mpiMgr.all2all(inBetaSeg, outBetaSeg);
+    t_alltoall += mpiMgr.Wtime() - t1;
+    ++n_alltoall;
 
     todRedistribution5cm(pntarr, inBetaSeg, outBetaSeg, inBetaSegAcc, outBetaSegAcc,
                          outBetaSegSize, pntarr2, totsize, inOffset, outOffset,
@@ -1550,9 +1556,14 @@ int convolver::convolve(pointing & pntarr, bool calibrate) {
 
     // Redistribute the data from pntarr2 to outpntarr
 
-    if (totsize != 0 || outBetaSegSize != 0)
+    if (totsize != 0 || outBetaSegSize != 0) {
+        mpiMgr.barrier();
+        t1 = mpiMgr.Wtime();
         mpiMgr.all2allv(pntarr2, inBetaSeg, inOffset, outpntarr, outBetaSeg, outOffset,
                         outBetaSegSize);
+        t_alltoall += mpiMgr.Wtime() - t1;
+        ++n_alltoall;
+    }    
 
     if (totsize > 0) pntarr2.dealloc();
 
@@ -1633,13 +1644,20 @@ int convolver::convolve(pointing & pntarr, bool calibrate) {
     // Sort outpntarr according to the 4th column
     if (outBetaSegSize != 0)
         hpsort_arrTOD(outpntarr);
-    if (totsize != 0 || outBetaSegSize != 0)
+    if (totsize != 0 || outBetaSegSize != 0) {
+        mpiMgr.barrier();
+        t1 = mpiMgr.Wtime();
         mpiMgr.all2allv(outpntarr, outBetaSeg, outOffset, pntarr,
                         inBetaSeg, inOffset, 5 * totsize);
-
-    if (outBetaSegSize != 0) outpntarr.dealloc();
+        t_alltoall += mpiMgr.Wtime() - t1;
+        ++n_alltoall;
+    }
+    
+    if (outBetaSegSize != 0)
+        outpntarr.dealloc();
     // Sort according to the 5th column, time stamp
-    if (totsize != 0) hpsort_arrTime(pntarr);
+    if (totsize != 0)
+        hpsort_arrTime(pntarr);
 
     levels::arr<double> todAll;
     preReorderingStep(ntod, ntod2, todAll, todTest_arr, todTest_arr2);
@@ -1647,9 +1665,10 @@ int convolver::convolve(pointing & pntarr, bool calibrate) {
     preReorderingStep(ntod, ntod2, timeAll, timeTest_arr, timeTest_arr2);
 
     // sort time and signal according to time
-    if (outBetaSegSize != 0) hpsort_DDcm(timeAll, todAll);
+    if (outBetaSegSize != 0)
+        hpsort_DDcm(timeAll, todAll);
 
-    for (long ii = 0; ii < cores; ii++) {
+    for (long ii = 0; ii < cores; ++ii) {
         inBetaSeg[ii] = inBetaSeg[ii] / 5;
         outBetaSeg[ii] = outBetaSeg[ii] / 5;
         inOffset[ii] = inOffset[ii] / 5;
@@ -1659,14 +1678,23 @@ int convolver::convolve(pointing & pntarr, bool calibrate) {
     // collect the convolved TOD
 
     levels::arr<double> outtodarr, outnumarr;
-    if (totsize != 0 || outBetaSegSize != 0)
-        mpiMgr.all2allv(todAll, outBetaSeg, outOffset, outtodarr, inBetaSeg, inOffset, totsize);
-    if (totsize != 0 || outBetaSegSize != 0)
-        mpiMgr.all2allv(timeAll, outBetaSeg, outOffset, outnumarr, inBetaSeg, inOffset, totsize);
-
-    if (outBetaSegSize != 0) todAll.dealloc();
-    if (outBetaSegSize != 0) timeAll.dealloc();
-
+    if (totsize != 0 || outBetaSegSize != 0) {
+        mpiMgr.barrier();
+        t1 = mpiMgr.Wtime();
+        mpiMgr.all2allv(todAll, outBetaSeg, outOffset, outtodarr,
+                        inBetaSeg, inOffset, totsize);
+        mpiMgr.all2allv(timeAll, outBetaSeg, outOffset, outnumarr,
+                        inBetaSeg, inOffset, totsize);
+        t_alltoall += mpiMgr.Wtime() - t1;
+        ++n_alltoall;
+        ++n_alltoall;
+    }
+    
+    if (outBetaSegSize != 0) {
+        todAll.dealloc();
+        timeAll.dealloc();
+    }
+    
     if (CMULT_VERBOSITY > 1) {
         double maxtodall(0), mintodall(1e10);
         for (long ii = 0; ii < totsize; ++ii) {
@@ -1716,35 +1744,36 @@ void convolver::report_timing() {
     if (corenum == 0)
         std::cerr << "Conviqt::convolve timing:" << std::endl;
     timing_line(std::string("convolve"), t_convolve, n_convolve);
-    timing_line(std::string("  todgen_v4"), t_todgen_v4, n_todgen_v4);
-    timing_line(std::string("    arrFillingcm_v2"), t_arrFillingcm_v2, n_arrFillingcm_v2);
-    timing_line(std::string("    interpolTOD_arrTestcm_v4"),
+    timing_line(std::string("    todgen_v4"), t_todgen_v4, n_todgen_v4);
+    timing_line(std::string("        arrFillingcm_v2"), t_arrFillingcm_v2, n_arrFillingcm_v2);
+    timing_line(std::string("        interpolTOD_arrTestcm_v4"),
                 t_interpolTOD_arrTestcm_v4, n_interpolTOD_arrTestcm_v4);
-    timing_line(std::string("    interpolTOD_arrTestcm_pol_v4"),
+    timing_line(std::string("        interpolTOD_arrTestcm_pol_v4"),
                 t_interpolTOD_arrTestcm_pol_v4, n_interpolTOD_arrTestcm_pol_v4);
-    timing_line(std::string("        itheta0SetUp"), t_itheta0SetUp, n_itheta0SetUp);
-    timing_line(std::string("            ithetacalc"), t_ithetacalc, n_ithetacalc);
-    timing_line(std::string("        conviqt_hemiscm_single"),
+    timing_line(std::string("            itheta0SetUp"), t_itheta0SetUp, n_itheta0SetUp);
+    timing_line(std::string("                ithetacalc"), t_ithetacalc, n_ithetacalc);
+    timing_line(std::string("            conviqt_hemiscm_single"),
                 t_conviqt_hemiscm_single, n_conviqt_hemiscm_single);
-    timing_line(std::string("        conviqt_hemiscm_v4"),
+    timing_line(std::string("            conviqt_hemiscm_v4"),
                 t_conviqt_hemiscm_v4, n_conviqt_hemiscm_v4);
-    timing_line(std::string("        conviqt_hemiscm_pol_v4"),
+    timing_line(std::string("            conviqt_hemiscm_pol_v4"),
                 t_conviqt_hemiscm_pol_v4, n_conviqt_hemiscm_pol_v4);
-    timing_line(std::string("        conviqt_hemiscm_pol_single"),
+    timing_line(std::string("            conviqt_hemiscm_pol_single"),
                 t_conviqt_hemiscm_pol_single, n_conviqt_hemiscm_pol_single);
-    timing_line(std::string("            wigner_init"), t_wigner_init, n_wigner_init);
-    timing_line(std::string("            wigner_prepare"),
+    timing_line(std::string("                wigner_init"), t_wigner_init, n_wigner_init);
+    timing_line(std::string("                wigner_prepare"),
                 t_wigner_prepare, n_wigner_prepare);
-    timing_line(std::string("            wigner_calc"), t_wigner_calc, n_wigner_calc);
-    timing_line(std::string("            lat_iter"), t_lat_iter, n_lat_iter);
-    timing_line(std::string("            sincos_iter"), t_sincos_iter, n_sincos_iter);
-    timing_line(std::string("            todAnnulus_v3"),
+    timing_line(std::string("                wigner_calc"), t_wigner_calc, n_wigner_calc);
+    timing_line(std::string("                lat_iter"), t_lat_iter, n_lat_iter);
+    timing_line(std::string("                sincos_iter"), t_sincos_iter, n_sincos_iter);
+    timing_line(std::string("                todAnnulus_v3"),
                 t_todAnnulus_v3, n_todAnnulus_v3);
-    timing_line(std::string("        conviqt_tod_loop_v4"),
+    timing_line(std::string("            conviqt_tod_loop_v4"),
                 t_conviqt_tod_loop_v4, n_conviqt_tod_loop_v4);
-    timing_line(std::string("        conviqt_tod_loop_pol_v5"),
+    timing_line(std::string("            conviqt_tod_loop_pol_v5"),
                 t_conviqt_tod_loop_pol_v5, n_conviqt_tod_loop_pol_v5);
-    timing_line(std::string("            weight_ncm"), t_weight_ncm, n_weight_ncm);
+    timing_line(std::string("                weight_ncm"), t_weight_ncm, n_weight_ncm);
+    timing_line(std::string("    alltoall"), t_alltoall, n_alltoall);
 }
 
 void convolver::timing_line(std::string label, double timer, long counter) {
@@ -1771,7 +1800,7 @@ void convolver::timing_line(std::string label, double timer, long counter) {
     
     if (corenum == 0 && cmax > 0) {
         fprintf(stderr,
-                "%-35s %8.2f < %8.2f +- %8.2f < %8.2f "
+                "%-40s %8.2f < %8.2f +- %8.2f < %8.2f "
                 "(%8ld < %10.1f +- %10.1f < %8ld)\n",
                 label.c_str(),
                 tmin, tmean, tstd, tmax,
