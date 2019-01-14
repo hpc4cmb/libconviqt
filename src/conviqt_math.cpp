@@ -224,7 +224,7 @@ void convolver::ithetacalc(levels::arr<long> &itheta0,
         if (itheta0[ii] < 0)
             itheta0[ii] = 0;
     }
-    t_ithetacalc = mpiMgr.Wtime() - tstart;
+    t_ithetacalc += mpiMgr.Wtime() - tstart;
 }
 
 
@@ -443,6 +443,7 @@ void convolver::todgen_v4(long ntod, long ntod2,
         std::cout << "corenum = " << corenum << "  order = " << order
                   << "  ntod = " << ntod << "  ntod2 = " << ntod2 << std::endl;
 
+    mpiMgr.barrier();
     if (!pol)
         interpolTOD_arrTestcm_v4(outpntarr1, outpntarr2,
                                  todTest_arr, todTest_arr2, ntod, ntod2);
@@ -450,7 +451,7 @@ void convolver::todgen_v4(long ntod, long ntod2,
         interpolTOD_arrTestcm_pol_v4(outpntarr1, outpntarr2,
                                      todTest_arr, todTest_arr2, ntod, ntod2);
 
-    t_todgen_v4 = mpiMgr.Wtime() - tstart;
+    t_todgen_v4 += mpiMgr.Wtime() - tstart;
 }
 
 
@@ -495,7 +496,7 @@ void convolver::itheta0SetUp(int npoints, int ioffset, long ntheta, double theta
     }
 
     TODAsym.fill(0.);
-    t_itheta0SetUp = mpiMgr.Wtime() - tstart;
+    t_itheta0SetUp += mpiMgr.Wtime() - tstart;
 }
 
 
@@ -598,7 +599,7 @@ void convolver::conviqt_hemiscm_v4(levels::arr3<xcomplex<double> > &tod1,
     todAnnulus_v3(tod1, Cmm, cs, sn, cs0, sn0, NThetaIndex1);
     todAnnulus_v3(tod2, Cmm2, cs, sn, cs0, sn0, NThetaIndex1);
 
-    t_conviqt_hemiscm_v4 = mpiMgr.Wtime() - tstart;
+    t_conviqt_hemiscm_v4 += mpiMgr.Wtime() - tstart;
 }
 
 
@@ -719,7 +720,7 @@ void convolver::conviqt_hemiscm_pol_v4(levels::arr3< xcomplex<double> > &tod1,
   todAnnulus_v3(tod1, Cmm, cs, sn, cs0, sn0, NThetaIndex1);
   todAnnulus_v3(tod2, Cmm2, cs, sn, cs0, sn0, NThetaIndex1);
 
-  t_conviqt_hemiscm_pol_v4 = mpiMgr.Wtime() - tstart;
+  t_conviqt_hemiscm_pol_v4 += mpiMgr.Wtime() - tstart;
 }
 
 
@@ -805,7 +806,7 @@ void convolver::conviqt_hemiscm_single(levels::arr3<xcomplex<double> > &tod1,
 
     todAnnulus_v3(tod1, Cmm, cs, sn, cs0, sn0, NThetaIndex1);
 
-    t_conviqt_hemiscm_single = mpiMgr.Wtime() - tstart;
+    t_conviqt_hemiscm_single += mpiMgr.Wtime() - tstart;
 }
 
 
@@ -908,7 +909,7 @@ void convolver::conviqt_hemiscm_pol_single(levels::arr3<xcomplex<double> > &tod1
 
     todAnnulus_v3(tod1, Cmm, cs, sn, cs0, sn0, NThetaIndex1);
 
-    t_conviqt_hemiscm_pol_single = mpiMgr.Wtime() - tstart;
+    t_conviqt_hemiscm_pol_single += mpiMgr.Wtime() - tstart;
 }
 
 
@@ -974,7 +975,7 @@ void convolver::todAnnulus_v3(levels::arr3<xcomplex<double> > &tod1,
     // Note that now, -lmax <= msky <= lmax corresponds to the angle
     // 0 <= phi <= 2.*pi/2./(2.*lmax+1.) and -pi <= phi <= -2.pi/(2.*lmax+1.)
     // Finished with convolution and FFT over msky.
-    t_todAnnulus_v3 = mpiMgr.Wtime() - tstart;
+    t_todAnnulus_v3 += mpiMgr.Wtime() - tstart;
 }
 
 
@@ -1088,7 +1089,7 @@ void convolver::interpolTOD_arrTestcm_v4(levels::arr<double> &outpntarr1,
 
   if (CMULT_VERBOSITY > 1) std::cout << "Leaving interpolTOD_arrTestcm_v4" << std::endl;
 
-  t_interpolTOD_arrTestcm_v4 =  mpiMgr.Wtime() - tstart;
+  t_interpolTOD_arrTestcm_v4 += mpiMgr.Wtime() - tstart;
 }
 
 
@@ -1210,7 +1211,7 @@ void convolver::interpolTOD_arrTestcm_pol_v4(levels::arr<double> &outpntarr1,
         std::cout << "Leaving interpolTOD_arrTestcm_pol_v4" << std::endl;
     }
 
-    t_interpolTOD_arrTestcm_pol_v4 = mpiMgr.Wtime() - tstart;
+    t_interpolTOD_arrTestcm_pol_v4 += mpiMgr.Wtime() - tstart;
 }
 
 
@@ -1296,7 +1297,7 @@ void convolver::conviqt_tod_loop_v4(levels::arr<long> &lowerIndex,
         }
     }
 
-    t_conviqt_tod_loop_v4 = mpiMgr.Wtime() - tstart;
+    t_conviqt_tod_loop_v4 += mpiMgr.Wtime() - tstart;
 }
 
 
@@ -1377,7 +1378,7 @@ void convolver::conviqt_tod_loop_pol_v5(levels::arr<long> &lowerIndex,
         }
     }
 
-    t_conviqt_tod_loop_pol_v5 = mpiMgr.Wtime() - tstart;
+    t_conviqt_tod_loop_pol_v5 += mpiMgr.Wtime() - tstart;
 }
 
 
@@ -1400,7 +1401,7 @@ void convolver::arrFillingcm_v2(long ntod, levels::arr<double> &timeTest_arr,
     for (long ii = 0; ii < ntod; ++ii)
         timeTest_arr[ii] = outpntarrx[5 * ii + 4];
 
-    t_arrFillingcm_v2 = mpiMgr.Wtime() - tstart;
+    t_arrFillingcm_v2 += mpiMgr.Wtime() - tstart;
 }
 
 
@@ -1654,7 +1655,7 @@ int convolver::convolve(pointing & pntarr, bool calibrate) {
                       << maxtoddiff << "   calibration = " << calibration << std::endl;
     }
 
-    t_convolve = mpiMgr.Wtime() - tstart;
+    t_convolve += mpiMgr.Wtime() - tstart;
     //if (CMULT_VERBOSITY > 1)
     report_timing();
 
