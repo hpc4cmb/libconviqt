@@ -85,32 +85,48 @@ private :
 
 
 class detector {
+    
 public :
-    detector( ) {};
-    detector( std::string det_id ) : det_id_(det_id) {};
+    
+    detector() {};
+    detector(std::string det_id) : det_id_(det_id) {};
     void set_epsilon(double epsilon) { epsilon_ = epsilon; };
     double get_epsilon() {return epsilon_;};
-    void set_id( std::string det_id ) { det_id_ = det_id; };
+    void set_id(std::string det_id) { det_id_ = det_id; };
     std::string get_id() { return det_id_; };
+    
 private :
+    
     std::string det_id_;
     double epsilon_;
+    
 };
 
 class convolver {
+    
 public :
-    convolver( sky *s, beam *b, detector *d, bool pol=false, long lmax=5000, long beammax=14, long order=5, MPI_Comm comm=MPI_COMM_WORLD );
-    int convolve( pointing & pnt, bool calibrate=true );
-    int set_sky( sky *s );
-    int set_beam( beam *b );
-    int set_detector( detector *d );
-
-    void thetaDeltaThetacm( double thetaini, int corenum, double &theta, double &deltatheta );
-    void deltaTheta2( long iival, double thetaini, levels::arr<double> &dbeta );
-    void ratiobetacalcgreatercm( long &ratiobeta, double theta, levels::arr<double> &corethetaarr );
-    void ratiobetacalcsmallercm( long &ratiobeta, double theta, levels::arr<double> &corethetaarr );
+    
+    convolver(sky *s, beam *b, detector *d, bool pol=false, long lmax=5000, long beammax=14,
+              long order=5, MPI_Comm comm=MPI_COMM_WORLD);
+    int convolve(pointing & pnt, bool calibrate=true);
+    int set_sky(sky *s);
+    int set_beam(beam *b);
+    int set_detector(detector *d);
 
 private :
+    
+    // Variables related to the gridding of the data cube
+    
+    double phi0, dphi, inv_delta_phi, phioffset, dtheta, theta0, inv_delta_theta;
+    long npsi, nphi, halfmargin, margin, ntheta, max_order;
+    int npoints, ioffset;
+
+    long beta_to_itheta(double beta);
+    double itheta_to_beta1(const long itheta);    
+    double itheta_to_beta2(const long itheta);    
+    
+    void distribute_colatitudes(levels::arr<double> &pntarr, const long totsize,
+                                levels::arr<double> &corethetaarr);
     MPI_Manager mpiMgr;
     int corenum, cores;
     sky *s;
@@ -126,7 +142,7 @@ private :
         t_interpolTOD_arrTestcm_pol_v4, t_conviqt_hemiscm_pol_v4, t_conviqt_hemiscm_pol_single,
         t_conviqt_tod_loop_pol_v5, t_todAnnulus_v3,
         t_wigner_init, t_wigner_prepare, t_wigner_calc,
-        t_lat_iter, t_sincos_iter, t_alltoall;
+        t_lat_iter, t_sincos_iter, t_alltoall, t_todRedistribution5cm;
 
     long n_convolve, n_todgen_v4, n_arrFillingcm_v2, n_interpolTOD_arrTestcm_v4,
         n_itheta0SetUp, n_ithetacalc, n_conviqt_tod_loop_v4, n_weight_ncm,
@@ -134,42 +150,109 @@ private :
         n_interpolTOD_arrTestcm_pol_v4, n_conviqt_hemiscm_pol_v4, n_conviqt_hemiscm_pol_single,
         n_conviqt_tod_loop_pol_v5, n_todAnnulus_v3,
         n_wigner_init, n_wigner_prepare, n_wigner_calc,
-        n_lat_iter, n_sincos_iter, n_alltoall;
+        n_lat_iter, n_sincos_iter, n_alltoall, n_todRedistribution5cm;
 
-    void weight_ncm( double x, levels::arr<double> &wgt );
-    void weight_ncm( double x, std::vector<double> &wgt );
+    void weight_ncm(double x, levels::arr<double> &wgt);
+    void weight_ncm(double x, std::vector<double> &wgt);
 
-    void conviqt_hemiscm_v4( levels::arr3<xcomplex<double> > &tod1, levels::arr3<xcomplex<double> > &tod2, long NThetaIndex1, levels::arr<double> &rthetas );
+    void conviqt_hemiscm_v4(levels::arr3<xcomplex<double> > &tod1,
+                            levels::arr3<xcomplex<double> > &tod2,
+                            long NThetaIndex1,
+                            levels::arr<double> &rthetas);
 
-    void conviqt_hemiscm_pol_v4( levels::arr3<xcomplex<double> > &tod1, levels::arr3<xcomplex<double> > &tod2, long NThetaIndex1, levels::arr<double> &rthetas );
+    void conviqt_hemiscm_pol_v4(levels::arr3<xcomplex<double> > &tod1,
+                                levels::arr3<xcomplex<double> > &tod2,
+                                long NThetaIndex1,
+                                levels::arr<double> &rthetas);
 
-    void conviqt_hemiscm_single( levels::arr3<xcomplex<double> > &tod1, long NThetaIndex1, levels::arr<double> &rthetas );
+    void conviqt_hemiscm_single(levels::arr3<xcomplex<double> > &tod1,
+                                long NThetaIndex1,
+                                levels::arr<double> &rthetas);
 
-    void conviqt_hemiscm_pol_single( levels::arr3<xcomplex<double> > &tod1, long NThetaIndex1, levels::arr<double> &rthetas );
+    void conviqt_hemiscm_pol_single(levels::arr3<xcomplex<double> > &tod1,
+                                    long NThetaIndex1,
+                                    levels::arr<double> &rthetas);
 
-    void todAnnulus_v3(levels::arr3<xcomplex<double> > &tod1, levels::arr3<xcomplex<double> > &Cmm, levels::arr<double> &cs, levels::arr<double> &sn, levels::arr<double> &cs0, levels::arr<double> &sn0, long NThetaIndex1);
+    void todAnnulus_v3(levels::arr3<xcomplex<double> > &tod1,
+                       levels::arr3<xcomplex<double> > &Cmm,
+                       levels::arr<double> &cs,
+                       levels::arr<double> &sn,
+                       levels::arr<double> &cs0,
+                       levels::arr<double> &sn0,
+                       long NThetaIndex1);
 
-    void conviqt_tod_loop_v4(levels::arr<long> &lowerIndex, levels::arr<long> &upperIndex, levels::arr<double> &outpntarr, levels::arr3<xcomplex<double> > &TODAsym, long thetaIndex, levels::arr<long> &itheta0, long max_order, double inv_delta_theta, double theta0, double inv_delta_phi, double phioffset, long nphi, long ioffset, long npoints, long ntod, levels::arr<double> &TODValue, long lat);
+    void conviqt_tod_loop_v4(levels::arr<long> &lowerIndex,
+                             levels::arr<long> &upperIndex,
+                             levels::arr<double> &outpntarr,
+                             levels::arr3<xcomplex<double> > &TODAsym,
+                             long thetaIndex,
+                             levels::arr<long> &itheta0,
+                             long ntod, levels::arr<double> &TODValue, long lat);
 
-    void conviqt_tod_loop_pol_v5(levels::arr<long> &lowerIndex, levels::arr<long> &upperIndex, levels::arr<double> &outpntarr, levels::arr3<xcomplex<double> > &TODAsym, long thetaIndex, levels::arr<long> &itheta0, long max_order, double inv_delta_theta, double theta0, double inv_delta_phi, double phioffset, long nphi, long ioffset, long npoints, long ntod, levels::arr<double> &TODValue, long lat);
+    void conviqt_tod_loop_pol_v5(levels::arr<long> &lowerIndex,
+                                 levels::arr<long> &upperIndex,
+                                 levels::arr<double> &outpntarr,
+                                 levels::arr3<xcomplex<double> > &TODAsym,
+                                 long thetaIndex,
+                                 levels::arr<long> &itheta0,
+                                 long ntod,
+                                 levels::arr<double> &TODValue, long lat);
 
-    void ithetacalc(levels::arr<long> &itheta0, levels::arr<double> &outpntarr, long ntod, double inv_delta_theta, double theta0, long ioffset, long ntheta, long npoints);
+    void thetaDeltaThetacm(int corenum, double thetaini, double &theta, double &deltatheta);
+    void deltaTheta2(int corenum, double thetaini, levels::arr<double> &dbeta);
+    void ratiobetacalcgreatercm(int &corenum, double theta, levels::arr<double> &corethetaarr);
+    void ratiobetacalcsmallercm(int &corenum, double theta, levels::arr<double> &corethetaarr);
 
-    void interpolTOD_arrTestcm_v4( levels::arr<double> &outpntarr1, levels::arr<double> &outpntarr2, levels::arr<double> &TODValue, levels::arr<double> &TODValue2, long ntod, long ntod2 );
+    void interpolTOD_arrTestcm_v4(levels::arr<double> &outpntarr1,
+                                  levels::arr<double> &outpntarr2,
+                                  levels::arr<double> &TODValue1,
+                                  levels::arr<double> &TODValue2,
+                                  long ntod1, long ntod2);
 
-    void interpolTOD_arrTestcm_pol_v4( levels::arr<double> &outpntarr1, levels::arr<double> &outpntarr2, levels::arr<double> &TODValue, levels::arr<double> &TODValue2, long ntod, long ntod2 );
+    void interpolTOD_arrTestcm_pol_v4(levels::arr<double> &outpntarr1,
+                                      levels::arr<double> &outpntarr2,
+                                      levels::arr<double> &TODValue1,
+                                      levels::arr<double> &TODValue2,
+                                      long ntod1, long ntod2);
 
-    void itheta0SetUp(int npoints, int ioffset, long ntheta, double theta0, double inv_delta_theta, long nphi, levels::arr<double> outpntarr, long ntod, long &NThetaIndex, levels::arr<long> &itheta0, levels::arr<long> &lowerIndex, levels::arr<long> &upperIndex, levels::arr3<xcomplex<double> > &TODAsym);
+    void itheta0SetUp(levels::arr<double> outpntarr,
+                      long ntod,
+                      long &NThetaIndex,
+                      levels::arr<long> &itheta0,
+                      levels::arr<long> &lowerIndex,
+                      levels::arr<long> &upperIndex,
+                      levels::arr3<xcomplex<double> > &TODAsym);
 
-    void fillingBetaSeg( levels::arr<double> & pntarr, long & arrsize, double ratiodeltas, levels::arr<double> &corethetaarr, levels::arr<int> &inBetaSeg);
+    void ithetacalc(levels::arr<long> &itheta0,
+                    levels::arr<double> &outpntarr,
+                    long ntod);
 
-    void todRedistribution5cm( levels::arr<double> pntarr, levels::arr<int> inBetaSeg, levels::arr<int> outBetaSeg, levels::arr<int> &inBetaSegAcc, levels::arr<int> &outBetaSegAcc, long &outBetaSegSize, levels::arr<double> &pntarr2, long totsize, levels::arr<int> &inOffset, levels::arr<int> &outOffset, double ratiodeltas, levels::arr<double> &corethetaarr );
+    void fillingBetaSeg(levels::arr<double> & pntarr, const long arrsize, const double ratiodeltas,
+                        levels::arr<double> &corethetaarr, levels::arr<int> &inBetaSeg);
 
-    void todgen_v4( long ntod, long ntod2, levels::arr<double> &todTest_arr, levels::arr<double> &timeTest_arr, levels::arr<double> &todTest_arr2, levels::arr<double> &timeTest_arr2, levels::arr<double> &outpntarr );
+    void todRedistribution5cm(levels::arr<double> pntarr, levels::arr<int> inBetaSeg,
+                              levels::arr<int> outBetaSeg, levels::arr<int> &inBetaSegAcc,
+                              levels::arr<int> &outBetaSegAcc, long &outBetaSegSize,
+                              levels::arr<double> &pntarr2, long totsize,
+                              levels::arr<int> &inOffset, levels::arr<int> &outOffset, double ratiodeltas, levels::arr<double> &corethetaarr );
 
-    void preReorderingStep(long ntod, long ntod2, levels::arr<double> &todAll, levels::arr<double> &todTest_arr, levels::arr<double> &todTest_arr2);
+    void todgen_v4(long ntod1, long ntod2,
+                   levels::arr<double> &todTest_arr,
+                   levels::arr<double> &timeTest_arr,
+                   levels::arr<double> &todTest_arr2,
+                   levels::arr<double> &timeTest_arr2,
+                   levels::arr<double> &outpntarr);
 
-    void arrFillingcm_v2( long ntod, levels::arr<double> &timeTest_arr, levels::arr<double> &outpntarrx, levels::arr<double> &outpntarr, long offindex );
+    void preReorderingStep(long ntod1, long ntod2,
+                           levels::arr<double> &todAll,
+                           levels::arr<double> &todTest_arr1,
+                           levels::arr<double> &todTest_arr2);
+
+    void arrFillingcm_v2(long ntod,
+                         levels::arr<double> &timeTest_arr,
+                         levels::arr<double> &outpntarrx,
+                         levels::arr<double> &outpntarr,
+                         long offindex);
 
     void report_timing();
     void timing_line(std::string label, double timer, long counter);
