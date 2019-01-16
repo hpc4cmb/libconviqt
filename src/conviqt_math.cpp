@@ -1916,7 +1916,7 @@ int convolver::convolve(pointing &pntarr, bool calibrate) {
             // Insert convolved TOD into the output array
             pntarr[5 * ii + 3] = calibration * outtodarr[ii];
             if (CMULT_VERBOSITY > 1) {
-                maxtoddiff = std::max(abs(todtmp[ii]-pntarr[5 * ii + 3]), maxtoddiff);
+                maxtoddiff = std::max(fabs(todtmp[ii]-pntarr[5 * ii + 3]), maxtoddiff);
                 if (ii % 100000 == 0) {
                     std::cerr << "todtmp[ii] = " << todtmp[ii] << "  pntarr[5*ii+3] = "
                               << pntarr[5 * ii + 3] << "  difference = "
