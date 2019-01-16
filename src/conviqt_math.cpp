@@ -188,7 +188,6 @@ int convolver::set_detector(detector *d) {
 void convolver::weight_ncm(const double x, levels::arr<double> &wgt) {
     double tstart = mpiMgr.Wtime();
     ++n_weight_ncm;
-    const int npoints = order + 1;
 
     if (base_wgt.size() == 0) {
         // Initialize base_wgt only when needed
@@ -227,7 +226,6 @@ void convolver::weight_ncm(const double x, std::vector<double> &wgt) {
     // This method is called from multiple threads at once
     double tstart = mpiMgr.Wtime();
     ++n_weight_ncm;
-    const unsigned int npoints = order + 1;
 
     if (base_wgt.size() == 0) {
         // Initialize base_wgt only when needed
@@ -743,22 +741,22 @@ void convolver::conviqt_hemiscm_v4(levels::arr3<xcomplex<double> > &tod1,
     {
         wignergen wgen(lmax, rthetas, conv_acc), wgen_neg(lmax, rthetas, conv_acc);
         //wigner_estimator estimator(lmax,100);
-        for(long beamIndex = 0; beamIndex <= beammmax; ++beamIndex) {
-            double dsignb = levels::xpow(beamIndex, 1);
+        for(long mbeam = 0; mbeam < npsi; ++mbeam) {
+            double dsignb = levels::xpow(mbeam, 1);
 #pragma omp for schedule(static, 8)
             for (long msky = 0; msky <= lmax; ++msky) {
                 const double dsign = levels::xpow(msky, 1);
                 const double dsb = dsign * dsignb;
-                // estimator.prepare_m(beamIndex, msky);
+                // estimator.prepare_m(mbeam, msky);
                 // if (estimator.canSkip(rthetas[NThetaIndex1-1]))
                 //     continue; // negligible dmm
-                wgen.prepare(beamIndex, msky);
-                wgen_neg.prepare(beamIndex, -msky);
+                wgen.prepare(mbeam, msky);
+                wgen_neg.prepare(mbeam, -msky);
                 for (long lat = 0; lat < NThetaIndex1; ++lat) {
-                    xcomplex<double> Cmm_pos = Cmm(msky + lmax, beamIndex, lat);
-                    xcomplex<double> Cmm_neg = Cmm(-msky + lmax, beamIndex, lat);
-                    xcomplex<double> Cmm2_pos = Cmm2(msky + lmax, beamIndex, lat);
-                    xcomplex<double> Cmm2_neg = Cmm2(-msky + lmax, beamIndex, lat);
+                    xcomplex<double> Cmm_pos = Cmm(msky + lmax, mbeam, lat);
+                    xcomplex<double> Cmm_neg = Cmm(-msky + lmax, mbeam, lat);
+                    xcomplex<double> Cmm2_pos = Cmm2(msky + lmax, mbeam, lat);
+                    xcomplex<double> Cmm2_neg = Cmm2(-msky + lmax, mbeam, lat);
                     int firstl1, firstl2;
                     const levels::arr<double> &dmm = wgen.calc(lat, firstl1);
                     const levels::arr<double> &dmmneg = wgen_neg.calc(lat, firstl2);
@@ -773,7 +771,7 @@ void convolver::conviqt_hemiscm_v4(levels::arr3<xcomplex<double> > &tod1,
                         const double dMatrixElementmskypos2 = dlb * dMatrixElementmskyneg;
                         const double dMatrixElementmskyneg2 = dlb * dMatrixElementmskypos;
                         const xcomplex<float> sT = slmT(ii, msky);
-                        const xcomplex<float> bT = blmT(ii, beamIndex);
+                        const xcomplex<float> bT = blmT(ii, mbeam);
                         const double prod1 = sT.re * bT.re;
                         const double prod3 = sT.im * bT.re;
                         const double prod2 = sT.im * bT.im;
@@ -852,18 +850,18 @@ void convolver::conviqt_hemiscm_pol_v4(levels::arr3< xcomplex<double> > &tod1,
         t_wigner_init += mpiMgr.Wtime() - t1;
         ++n_wigner_init;
         // wigner_estimator estimator(lmax, 100);
-        for(long beamIndex = 0; beamIndex <= beammmax; ++beamIndex) {
-            const double dsignb = levels::xpow(beamIndex, 1);
+        for(long mbeam = 0; mbeam < npsi; ++mbeam) {
+            const double dsignb = levels::xpow(mbeam, 1);
 #pragma omp for schedule(static, 8)
             for (long msky = 0; msky <= lmax; ++msky) {
                 const double dsign = levels::xpow(msky, 1);
                 const double dsb = dsign * dsignb;
-                //estimator.prepare_m(beamIndex, msky);
+                //estimator.prepare_m(mbeam, msky);
                 // if (estimator.canSkip(rthetas[NThetaIndex - 1]))
                 //     continue; // negligible dmm
                 t1 = mpiMgr.Wtime();
-                wgen.prepare(beamIndex, msky);
-                wgen_neg.prepare(beamIndex, -msky);
+                wgen.prepare(mbeam, msky);
+                wgen_neg.prepare(mbeam, -msky);
                 t_wigner_prepare += mpiMgr.Wtime() - t1;
                 ++n_wigner_prepare;
                 for (long lat = 0; lat < NThetaIndex; ++lat) {
@@ -874,10 +872,10 @@ void convolver::conviqt_hemiscm_pol_v4(levels::arr3< xcomplex<double> > &tod1,
                     t_wigner_calc += mpiMgr.Wtime() - t1;
                     ++n_wigner_calc;
                     t1 = mpiMgr.Wtime();
-                    xcomplex<double> &Cmm1_pos = Cmm1(msky + lmax, beamIndex, lat);
-                    xcomplex<double> &Cmm1_neg = Cmm1(-msky + lmax, beamIndex, lat);
-                    xcomplex<double> &Cmm2_pos = Cmm2(msky + lmax, beamIndex, lat);
-                    xcomplex<double> &Cmm2_neg = Cmm2(-msky + lmax, beamIndex, lat);
+                    xcomplex<double> &Cmm1_pos = Cmm1(msky + lmax, mbeam, lat);
+                    xcomplex<double> &Cmm1_neg = Cmm1(-msky + lmax, mbeam, lat);
+                    xcomplex<double> &Cmm2_pos = Cmm2(msky + lmax, mbeam, lat);
+                    xcomplex<double> &Cmm2_neg = Cmm2(-msky + lmax, mbeam, lat);
                     const int firstl = (firstl1 > firstl2) ? firstl1 : firstl2;
                     double dlb = -levels::xpow(firstl, dsignb);
                     for (long ii = firstl; ii <= lmax; ++ii) {
@@ -891,9 +889,9 @@ void convolver::conviqt_hemiscm_pol_v4(levels::arr3< xcomplex<double> > &tod1,
                         const xcomplex<float> &sT = slmT(ii, msky);
                         const xcomplex<float> &sG = slmG(ii, msky);
                         const xcomplex<float> &sC = slmC(ii, msky);
-                        const xcomplex<float> &bT = blmT(ii, beamIndex);
-                        const xcomplex<float> &bG = blmG(ii, beamIndex);
-                        const xcomplex<float> &bC = blmC(ii, beamIndex);
+                        const xcomplex<float> &bT = blmT(ii, mbeam);
+                        const xcomplex<float> &bG = blmG(ii, mbeam);
+                        const xcomplex<float> &bC = blmC(ii, mbeam);
                         const double prod1 = sT.re * bT.re + sG.re * bG.re + sC.re * bC.re;
                         const double prod3 = sT.im * bT.re + sG.im * bG.re + sC.im * bC.re;
                         const double prod2 = sT.im * bT.im + sG.im * bG.im + sC.im * bC.im;
@@ -968,20 +966,20 @@ void convolver::conviqt_hemiscm_single(levels::arr3<xcomplex<double> > &tod,
         wignergen wgen(lmax, rthetas, conv_acc), wgen_neg(lmax, rthetas, conv_acc);
         // wigner_estimator estimator(lmax, 100);
 
-        for(long beamIndex = 0; beamIndex <= beammmax; ++beamIndex) {
-            const double dsignb = levels::xpow(beamIndex, 1);
+        for(long mbeam = 0; mbeam < npsi; ++mbeam) {
+            const double dsignb = levels::xpow(mbeam, 1);
 #pragma omp for schedule(static,8)
             for (long msky = 0; msky <= lmax; ++msky) {
                 const double dsign = levels::xpow(msky, 1);
                 const double dsb = dsign * dsignb;
-                // estimator.prepare_m(beamIndex, msky);
+                // estimator.prepare_m(mbeam, msky);
                 // if (estimator.canSkip(rthetas[NThetaIndex - 1]))
                 //     continue; // negligible dmm
-                wgen.prepare(beamIndex, msky);
-                wgen_neg.prepare(beamIndex, -msky);
+                wgen.prepare(mbeam, msky);
+                wgen_neg.prepare(mbeam, -msky);
                 for (long lat = 0; lat < NThetaIndex; ++lat) {
-                    xcomplex<double> &Cmm_pos = Cmm(msky + lmax, beamIndex, lat);
-                    xcomplex<double> &Cmm_neg = Cmm(-msky + lmax, beamIndex, lat);
+                    xcomplex<double> &Cmm_pos = Cmm(msky + lmax, mbeam, lat);
+                    xcomplex<double> &Cmm_neg = Cmm(-msky + lmax, mbeam, lat);
                     int firstl1, firstl2;
                     const levels::arr<double> &dmm = wgen.calc(lat, firstl1);
                     const levels::arr<double> &dmmneg = wgen_neg.calc(lat, firstl2);
@@ -992,7 +990,7 @@ void convolver::conviqt_hemiscm_single(levels::arr3<xcomplex<double> > &tod,
                         const double dMatrixElementmskypos = dsb * dmm[ii];
                         const double dMatrixElementmskyneg = dsb * dmmneg[ii];
                         const xcomplex<float> &sT = slmT(ii, msky);
-                        const xcomplex<float> &bT = blmT(ii, beamIndex);
+                        const xcomplex<float> &bT = blmT(ii, mbeam);
                         const double prod1 = sT.re * bT.re;
                         const double prod3 = sT.im * bT.re;
                         const double prod2 = sT.im * bT.im;
@@ -1059,18 +1057,18 @@ void convolver::conviqt_hemiscm_pol_single(levels::arr3<xcomplex<double> > &tod,
         t_wigner_init += mpiMgr.Wtime() - t1;
         ++n_wigner_init;
         // wigner_estimator estimator(lmax, 100);
-        for (long beamIndex = 0; beamIndex <= beammmax; ++beamIndex) {
-            const double dsignb = levels::xpow(beamIndex, 1);
+        for (long mbeam = 0; mbeam < npsi; ++mbeam) {
+            const double dsignb = levels::xpow(mbeam, 1);
 #pragma omp for schedule(static, 8)
             for (long msky = 0; msky <= lmax; ++msky) {
                 const double dsign = levels::xpow(msky, 1);
                 const double dsb = dsign * dsignb;
-                //estimator.prepare_m(beamIndex, msky);
+                //estimator.prepare_m(mbeam, msky);
                 //if (estimator.canSkip(rthetas[NThetaIndex - 1]))
                 //    continue; // negligible dmm
                 t1 = mpiMgr.Wtime();
-                wgen.prepare(beamIndex, msky);
-                wgen_neg.prepare(beamIndex, -msky);
+                wgen.prepare(mbeam, msky);
+                wgen_neg.prepare(mbeam, -msky);
                 t_wigner_prepare += mpiMgr.Wtime() - t1;
                 ++n_wigner_prepare;
                 for (long lat = 0; lat < NThetaIndex; ++lat) {
@@ -1081,8 +1079,8 @@ void convolver::conviqt_hemiscm_pol_single(levels::arr3<xcomplex<double> > &tod,
                     t_wigner_calc += mpiMgr.Wtime() - t1;
                     ++n_wigner_calc;
                     t1 = mpiMgr.Wtime();
-                    xcomplex<double> &Cmm_pos = Cmm(msky + lmax, beamIndex, lat);
-                    xcomplex<double> &Cmm_neg = Cmm(-msky + lmax, beamIndex, lat);
+                    xcomplex<double> &Cmm_pos = Cmm(msky + lmax, mbeam, lat);
+                    xcomplex<double> &Cmm_neg = Cmm(-msky + lmax, mbeam, lat);
                     const int firstl = (firstl1 > firstl2) ? firstl1 : firstl2;
                     for (long ii = firstl; ii <= lmax; ++ii) {
                         // Note that msky in dlm is located to the left
@@ -1091,9 +1089,9 @@ void convolver::conviqt_hemiscm_pol_single(levels::arr3<xcomplex<double> > &tod,
                         const xcomplex<float> &sT = slmT(ii, msky);
                         const xcomplex<float> &sG = slmG(ii, msky);
                         const xcomplex<float> &sC = slmC(ii, msky);
-                        const xcomplex<float> &bT = blmT(ii, beamIndex);
-                        const xcomplex<float> &bG = blmG(ii, beamIndex);
-                        const xcomplex<float> &bC = blmC(ii, beamIndex);
+                        const xcomplex<float> &bT = blmT(ii, mbeam);
+                        const xcomplex<float> &bG = blmG(ii, mbeam);
+                        const xcomplex<float> &bC = blmC(ii, mbeam);
                         const double prod1 = sT.re * bT.re + sG.re * bG.re + sC.re * bC.re;
                         const double prod3 = sT.im * bT.re + sG.im * bG.re + sC.im * bC.re;
                         const double prod2 = sT.im * bT.im + sG.im * bG.im + sC.im * bC.im;
@@ -1159,43 +1157,43 @@ void convolver::todAnnulus_v3(levels::arr3<xcomplex<double> > &tod,
 #pragma omp for schedule(static, 8)
         for (long msky = -lmax; msky <= lmax; ++msky) {
             const long ii = msky + lmax;
-            for (long beamIndex = 0; beamIndex <= beammmax; ++beamIndex) {
+            for (long mbeam = 0; mbeam < npsi; ++mbeam) {
                 for (long lat = 0; lat < NThetaIndex; ++lat) {
                     //double dPhi = -halfpi;
-                    const double tmpR = Cmm(ii, beamIndex, lat).re;
-                    const double tmpI = Cmm(ii, beamIndex, lat).im;
-                    Cmm(ii, beamIndex, lat).re = cs[ii] * tmpR + sn[ii] * tmpI;
-                    Cmm(ii, beamIndex, lat).im = cs[ii] * tmpI - sn[ii] * tmpR;
+                    const double tmpR = Cmm(ii, mbeam, lat).re;
+                    const double tmpI = Cmm(ii, mbeam, lat).im;
+                    Cmm(ii, mbeam, lat).re = cs[ii] * tmpR + sn[ii] * tmpI;
+                    Cmm(ii, mbeam, lat).im = cs[ii] * tmpI - sn[ii] * tmpR;
                 }
             }
         } // end of parallel for
 #pragma omp for schedule(static, 1)
-        for (long beamIndex = 0; beamIndex <= beammmax; ++beamIndex) {
+        for (long mbeam = 0; mbeam < npsi; ++mbeam) {
             for (long lat = 0; lat < NThetaIndex; ++lat) {
                 for (long msky = -lmax; msky <= lmax; ++msky) {
                     const long ii = msky + lmax;
-                    Cmsky[ii] = Cmm(ii, beamIndex, lat);
+                    Cmsky[ii] = Cmm(ii, mbeam, lat);
                 }
                 p1.backward(Cmsky);
                 for (long msky = 0; msky < nphi; msky++)
-                    tod(msky, beamIndex, lat) = Cmsky[msky];
+                    tod(msky, mbeam, lat) = Cmsky[msky];
             }
         } // end of parallel for
 #pragma omp for schedule(static, 8)
         for (long msky = -lmax; msky <= lmax; ++msky) {
             const long ii = msky + lmax;
-            for (long beamIndex = 0; beamIndex <= beammmax; ++beamIndex) {
-                const long jj = beamIndex + lmax;
+            for (long mbeam = 0; mbeam < npsi; ++mbeam) {
+                const long jj = mbeam + lmax;
                 for (long lat = 0; lat < NThetaIndex; ++lat) {
-                    double tmpR = tod(ii, beamIndex, lat).re;
-                    double tmpI = tod(ii, beamIndex, lat).im;
-                    tod(ii, beamIndex, lat).re = cs0[ii] * tmpR + sn0[ii] * tmpI;
-                    tod(ii, beamIndex, lat).im = cs0[ii] * tmpI - sn0[ii] * tmpR;
+                    double tmpR = tod(ii, mbeam, lat).re;
+                    double tmpI = tod(ii, mbeam, lat).im;
+                    tod(ii, mbeam, lat).re = cs0[ii] * tmpR + sn0[ii] * tmpI;
+                    tod(ii, mbeam, lat).im = cs0[ii] * tmpI - sn0[ii] * tmpR;
                     // Rotate in psi space
-                    tmpR = tod(ii, beamIndex, lat).re;
-                    tmpI = tod(ii, beamIndex, lat).im;
-                    tod(ii, beamIndex, lat).re = cs[jj] * tmpR + sn[jj] * tmpI;
-                    tod(ii, beamIndex, lat).im = cs[jj] * tmpI - sn[jj] * tmpR;
+                    tmpR = tod(ii, mbeam, lat).re;
+                    tmpI = tod(ii, mbeam, lat).im;
+                    tod(ii, mbeam, lat).re = cs[jj] * tmpR + sn[jj] * tmpI;
+                    tod(ii, mbeam, lat).im = cs[jj] * tmpI - sn[jj] * tmpR;
                 }
             }
         } // end of parallel for
@@ -1432,16 +1430,16 @@ void convolver::conviqt_tod_loop_v4(levels::arr<long> &lowerIndex,
     ++n_conviqt_tod_loop_v4;
     levels::arr2< xcomplex<double> > conviqtarr;
     try {
-        conviqtarr.alloc(nphi, beammmax + 1);
+        conviqtarr.alloc(nphi, npsi);
     } catch (std::bad_alloc & e) {
         std::cerr << "conviqt_tod_loop_v4 : Out of memory allocating "
-                  << nphi * (beammmax + 1) * 16. / 1024 / 1024
+                  << nphi * npsi * 16. / 1024 / 1024
                   << "MB for conviqtarr" << std::endl;
         throw;
     }
 
     for (long ii = 0; ii < nphi; ++ii) {
-        for (long jj = 0; jj < beammmax + 1; ++jj) {
+        for (long jj = 0; jj < npsi; ++jj) {
             conviqtarr[ii][jj] = TODAsym(ii, jj, lat);
         }
     }
@@ -1453,7 +1451,7 @@ void convolver::conviqt_tod_loop_v4(levels::arr<long> &lowerIndex,
 
 #pragma omp parallel default(shared)
     {
-        std::vector<double> cosang(beammmax + 1), sinang(beammmax + 1);
+        std::vector<double> cosang(npsi), sinang(npsi);
         std::vector<double> wgt1(max_order + 1, 0.);
         std::vector<double> wgt2(max_order + 1, 0.);
 #pragma omp for schedule(static, 1)
@@ -1492,7 +1490,7 @@ void convolver::conviqt_tod_loop_v4(levels::arr<long> &lowerIndex,
                 xcomplex<double> *ca = &(conviqtarr[newphiIndex][0]);
                 double *cang = &(cosang[0]);
                 double *sang = &(sinang[0]);
-                for (long ipsi = 0; ipsi <= beammmax; ++ipsi) {
+                for (long ipsi = 0; ipsi < npsi; ++ipsi) {
                     TODValue[ii] += weight * ((*cang) * (*ca).re - (*sang) * (*ca).im);
                     ++ca;
                     ++cang;
@@ -1519,16 +1517,16 @@ void convolver::conviqt_tod_loop_pol_v5(levels::arr<long> &lowerIndex,
     ++n_conviqt_tod_loop_pol_v5;
     levels::arr2< xcomplex<double> > conviqtarr;
     try {
-        conviqtarr.alloc(nphi, beammmax + 1);
+        conviqtarr.alloc(nphi, npsi);
     } catch (std::bad_alloc & e) {
         std::cerr << "conviqt_tod_loop_pol_v5 : Out of memory allocating "
-                  << nphi * (beammmax + 1) * 16. / 1024 / 1024 << "MB for conviqtarr"
+                  << nphi * npsi * 16. / 1024 / 1024 << "MB for conviqtarr"
                   << std::endl;
         throw;
     }
 
     for (long ii = 0; ii < nphi; ++ii) {
-        for (long jj = 0; jj < beammmax + 1; ++jj) {
+        for (long jj = 0; jj < npsi; ++jj) {
             conviqtarr[ii][jj] = TODAsym(ii, jj, lat);
         }
     }
@@ -1540,7 +1538,7 @@ void convolver::conviqt_tod_loop_pol_v5(levels::arr<long> &lowerIndex,
 
 #pragma omp parallel default(shared)
     {
-        std::vector<double> cosang(beammmax + 1), sinang(beammmax + 1);
+        std::vector<double> cosang(npsi), sinang(npsi);
         std::vector<double> wgt1(max_order + 1, 0.);
         std::vector<double> wgt2(max_order + 1, 0.);
 #pragma omp for schedule(static, 1)
@@ -1580,7 +1578,7 @@ void convolver::conviqt_tod_loop_pol_v5(levels::arr<long> &lowerIndex,
                 xcomplex<double> *ca = &(conviqtarr[iphinew][0]);
                 double *cang = &(cosang[0]);
                 double *sang = &(sinang[0]);
-                for (long ipsi = 0; ipsi <= beammmax; ++ipsi) {
+                for (long ipsi = 0; ipsi < npsi; ++ipsi) {
                     TODValue[ii] += weight * ((*cang) * (*ca).re - (*sang) * (*ca).im);
                     ++ca;
                     ++cang;
