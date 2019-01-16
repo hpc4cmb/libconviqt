@@ -28,7 +28,7 @@
 #define conv_acc 1.e-30
 
 // convolver verbosity
-#define CMULT_VERBOSITY 10
+#define CMULT_VERBOSITY 1
 
 // The declarations go here
 
@@ -142,20 +142,20 @@ private :
     long lmax, beammmax, order;
     std::vector<double> base_wgt;
 
-    double t_convolve, t_todgen_v4, t_arrFillingcm_v2, t_interpolTOD_arrTestcm,
-        t_itheta0SetUp, t_ithetacalc, t_conviqt_tod_loop_v4, t_weight_ncm,
-        t_conviqt_hemiscm_single, t_conviqt_hemiscm_v4,
-        t_interpolTOD_arrTestcm_pol_v4, t_conviqt_hemiscm_pol_v4,
-        t_conviqt_hemiscm_pol_single, t_conviqt_tod_loop_pol_v5, t_todAnnulus_v3,
+    double t_convolve, t_todgen, t_arrFillingcm, t_interpolTOD_arrTestcm,
+        t_itheta0SetUp, t_ithetacalc, t_conviqt_tod_loop, t_weight_ncm,
+        t_conviqt_hemiscm_single, t_conviqt_hemiscm,
+        t_interpolTOD_arrTestcm_pol, t_conviqt_hemiscm_pol,
+        t_conviqt_hemiscm_pol_single, t_conviqt_tod_loop_pol, t_todAnnulus,
         t_wigner_init, t_wigner_prepare, t_wigner_calc,
         t_lat_iter, t_sincos_iter, t_alltoall, t_todRedistribution5cm,
         t_distribute_colatitudes;
 
-    long n_convolve, n_todgen_v4, n_arrFillingcm_v2, n_interpolTOD_arrTestcm,
-        n_itheta0SetUp, n_ithetacalc, n_conviqt_tod_loop_v4, n_weight_ncm,
+    long n_convolve, n_todgen, n_arrFillingcm, n_interpolTOD_arrTestcm,
+        n_itheta0SetUp, n_ithetacalc, n_conviqt_tod_loop, n_weight_ncm,
         n_conviqt_hemiscm_single, n_conviqt_hemiscm,
-        n_interpolTOD_arrTestcm_pol_v4, n_conviqt_hemiscm_pol_v4,
-        n_conviqt_hemiscm_pol_single, n_conviqt_tod_loop_pol_v5, n_todAnnulus_v3,
+        n_interpolTOD_arrTestcm_pol, n_conviqt_hemiscm_pol,
+        n_conviqt_hemiscm_pol_single, n_conviqt_tod_loop_pol, n_todAnnulus,
         n_wigner_init, n_wigner_prepare, n_wigner_calc,
         n_lat_iter, n_sincos_iter, n_alltoall, n_todRedistribution5cm,
         n_distribute_colatitudes;
@@ -223,11 +223,11 @@ private :
                                   levels::arr<double> &TODValue2,
                                   long ntod1, long ntod2);
 
-    void interpolTOD_arrTestcm_pol_v4(levels::arr<double> &outpntarr1,
-                                      levels::arr<double> &outpntarr2,
-                                      levels::arr<double> &TODValue1,
-                                      levels::arr<double> &TODValue2,
-                                      long ntod1, long ntod2);
+    void interpolTOD_arrTestcm_pol(levels::arr<double> &outpntarr1,
+                                   levels::arr<double> &outpntarr2,
+                                   levels::arr<double> &TODValue1,
+                                   levels::arr<double> &TODValue2,
+                                   long ntod1, long ntod2);
 
     void itheta0SetUp(levels::arr<double> outpntarr,
                       long ntod,
@@ -252,23 +252,23 @@ private :
                               levels::arr<int> &inOffset, levels::arr<int> &outOffset,
                               double ratiodeltas, levels::arr<double> &corethetaarr);
 
-    void todgen_v4(long ntod1, long ntod2,
-                   levels::arr<double> &todTest_arr,
-                   levels::arr<double> &timeTest_arr,
-                   levels::arr<double> &todTest_arr2,
-                   levels::arr<double> &timeTest_arr2,
-                   levels::arr<double> &outpntarr);
+    void todgen(long ntod1, long ntod2,
+                levels::arr<double> &todTest_arr,
+                levels::arr<double> &timeTest_arr,
+                levels::arr<double> &todTest_arr2,
+                levels::arr<double> &timeTest_arr2,
+                levels::arr<double> &outpntarr);
 
     void preReorderingStep(long ntod1, long ntod2,
                            levels::arr<double> &todAll,
                            levels::arr<double> &todTest_arr1,
                            levels::arr<double> &todTest_arr2);
 
-    void arrFillingcm_v2(long ntod,
-                         levels::arr<double> &timeTest_arr,
-                         levels::arr<double> &outpntarrx,
-                         levels::arr<double> &outpntarr,
-                         long offindex);
+    void arrFillingcm(long ntod,
+                      levels::arr<double> &timeTest_arr,
+                      levels::arr<double> &outpntarrx,
+                      levels::arr<double> &outpntarr,
+                      long offindex);
 
     void report_timing();
     void timing_line(std::string label, double timer, long counter);
