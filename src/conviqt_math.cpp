@@ -831,8 +831,8 @@ void convolver::conviqt_hemiscm_pol_v4(levels::arr3< xcomplex<double> > &tod1,
                                        levels::arr<double> &rthetas) {
     double tstart = mpiMgr.Wtime();
     ++n_conviqt_hemiscm_pol_v4;
-    levels::arr3< xcomplex<double> > Cmm(nphi, npsi, NThetaIndex);
-    Cmm.fill(0.);
+    levels::arr3< xcomplex<double> > Cmm1(nphi, npsi, NThetaIndex);
+    Cmm1.fill(0.);
     levels::arr3< xcomplex<double> > Cmm2(nphi, npsi, NThetaIndex);
     Cmm2.fill(0.);
 
@@ -874,10 +874,10 @@ void convolver::conviqt_hemiscm_pol_v4(levels::arr3< xcomplex<double> > &tod1,
                     t_wigner_calc += mpiMgr.Wtime() - t1;
                     ++n_wigner_calc;
                     t1 = mpiMgr.Wtime();
-                    xcomplex<double> Cmm_pos = Cmm(msky + lmax, beamIndex, lat);
-                    xcomplex<double> Cmm_neg = Cmm(-msky + lmax, beamIndex, lat);
-                    xcomplex<double> Cmm2_pos = Cmm2(msky + lmax, beamIndex, lat);
-                    xcomplex<double> Cmm2_neg = Cmm2(-msky + lmax, beamIndex, lat);
+                    xcomplex<double> &Cmm1_pos = Cmm1(msky + lmax, beamIndex, lat);
+                    xcomplex<double> &Cmm1_neg = Cmm1(-msky + lmax, beamIndex, lat);
+                    xcomplex<double> &Cmm2_pos = Cmm2(msky + lmax, beamIndex, lat);
+                    xcomplex<double> &Cmm2_neg = Cmm2(-msky + lmax, beamIndex, lat);
                     const int firstl = (firstl1 > firstl2) ? firstl1 : firstl2;
                     double dlb = -levels::xpow(firstl, dsignb);
                     for (long ii = firstl; ii <= lmax; ++ii) {
@@ -888,12 +888,12 @@ void convolver::conviqt_hemiscm_pol_v4(levels::arr3< xcomplex<double> > &tod1,
                         const double dMatrixElementmskyneg = dsb * dmmneg[ii];
                         const double dMatrixElementmskypos2 = dlb * dMatrixElementmskyneg;
                         const double dMatrixElementmskyneg2 = dlb * dMatrixElementmskypos;
-                        const xcomplex<float> sT = slmT(ii, msky);
-                        const xcomplex<float> sG = slmG(ii, msky);
-                        const xcomplex<float> sC = slmC(ii, msky);
-                        const xcomplex<float> bT = blmT(ii, beamIndex);
-                        const xcomplex<float> bG = blmG(ii, beamIndex);
-                        const xcomplex<float> bC = blmC(ii, beamIndex);
+                        const xcomplex<float> &sT = slmT(ii, msky);
+                        const xcomplex<float> &sG = slmG(ii, msky);
+                        const xcomplex<float> &sC = slmC(ii, msky);
+                        const xcomplex<float> &bT = blmT(ii, beamIndex);
+                        const xcomplex<float> &bG = blmG(ii, beamIndex);
+                        const xcomplex<float> &bC = blmC(ii, beamIndex);
                         const double prod1 = sT.re * bT.re + sG.re * bG.re + sC.re * bC.re;
                         const double prod3 = sT.im * bT.re + sG.im * bG.re + sC.im * bC.re;
                         const double prod2 = sT.im * bT.im + sG.im * bG.im + sC.im * bC.im;
@@ -904,8 +904,23 @@ void convolver::conviqt_hemiscm_pol_v4(levels::arr3< xcomplex<double> > &tod1,
                         const double xtmp_2 = tmp_2 * dMatrixElementmskypos;
                         const double xtmp_5 = tmp_1 * dMatrixElementmskypos2;
                         const double xtmp_6 = tmp_2 * dMatrixElementmskypos2;
-                        Cmm_pos.re += xtmp_1;
-                        Cmm_pos.im += xtmp_2;
+                        // DEBUG begin
+                        /*
+                        std::cerr << " lat = " << lat
+                                  << " ii = " << ii
+                                  << " xtmp_1 = " << xtmp_1
+                                  << " tmp_1 = " << tmp_1
+                                  << " dMatrixElementmskypos = " << dMatrixElementmskypos
+                                  << " prod1 = " << prod1
+                                  << " prod2 = " << prod2
+                                  << " sT.re = " << sT.re 
+                                  << " dsb = " << dsb
+                                  << " dlb = " << dlb
+                                  << std::endl;
+                        */
+                        // DEBUG end
+                        Cmm1_pos.re += xtmp_1;
+                        Cmm1_pos.im += xtmp_2;
                         Cmm2_pos.re += xtmp_5;
                         Cmm2_pos.im += xtmp_6;
                         if (msky != 0) {
@@ -915,8 +930,8 @@ void convolver::conviqt_hemiscm_pol_v4(levels::arr3< xcomplex<double> > &tod1,
                             double xtmp_4 = tmp_4 * dMatrixElementmskyneg;
                             double xtmp_7 = tmp_3 * dMatrixElementmskyneg2;
                             double xtmp_8 = tmp_4 * dMatrixElementmskyneg2;
-                            Cmm_neg.re += xtmp_3;
-                            Cmm_neg.im += xtmp_4;
+                            Cmm1_neg.re += xtmp_3;
+                            Cmm1_neg.im += xtmp_4;
                             Cmm2_neg.re += xtmp_7;
                             Cmm2_neg.im += xtmp_8;
                         }
@@ -943,10 +958,35 @@ void convolver::conviqt_hemiscm_pol_v4(levels::arr3< xcomplex<double> > &tod1,
         ++n_sincos_iter;
     } // End of parallel section
 
-  todAnnulus_v3(tod1, Cmm, cs, sn, cs0, sn0, NThetaIndex);
-  todAnnulus_v3(tod2, Cmm2, cs, sn, cs0, sn0, NThetaIndex);
+    // DEBUG begin
+    double rms1 = 0, rms2 = 0;
+    for (int iphi = 0; iphi < nphi; ++iphi)
+        {
+            for (int ipsi = 0; ipsi < npsi; ++ipsi)
+                {
+                    for (int ii = 0; ii < NThetaIndex; ++ii)
+                        {
+                            xcomplex<double> v;
+                            v = Cmm1(iphi, ipsi, ii);
+                            rms1 += v.re * v.re + v.im * v.im;
+                            v = Cmm2(iphi, ipsi, ii);
+                            rms2 += v.re * v.re + v.im * v.im;
+                        }
+                }
+        }
+    std::cerr << corenum << " :"
+              << " SUM(Cmm1^2) = " << rms1
+              << " SUM(Cmm2^2) = " << rms2
+              << std::endl << corenum << " :"    
+              << " RMS(Cmm1) = " << sqrt(rms1 / (nphi * npsi * NThetaIndex))
+              << " RMS(Cmm2) = " << sqrt(rms2 / (nphi * npsi * NThetaIndex))
+              << std::endl;
+    // DEBUG end
+    
+    todAnnulus_v3(tod1, Cmm1, cs, sn, cs0, sn0, NThetaIndex);
+    todAnnulus_v3(tod2, Cmm2, cs, sn, cs0, sn0, NThetaIndex);
 
-  t_conviqt_hemiscm_pol_v4 += mpiMgr.Wtime() - tstart;
+    t_conviqt_hemiscm_pol_v4 += mpiMgr.Wtime() - tstart;
 }
 
 
@@ -958,8 +998,8 @@ void convolver::conviqt_hemiscm_single(levels::arr3<xcomplex<double> > &tod,
     levels::arr3<xcomplex<double> > Cmm(nphi, npsi, NThetaIndex);
     Cmm.fill(0.);
 
-    Alm< xcomplex<float> > & blmT = b->blmT();
-    Alm< xcomplex<float> > & slmT = s->slmT();
+    Alm< xcomplex<float> > &blmT = b->blmT();
+    Alm< xcomplex<float> > &slmT = s->slmT();
     levels::arr<double> cs(nphi), sn(nphi);
     levels::arr<double> cs0(nphi), sn0(nphi);
 
@@ -980,8 +1020,8 @@ void convolver::conviqt_hemiscm_single(levels::arr3<xcomplex<double> > &tod,
                 wgen.prepare(beamIndex, msky);
                 wgen_neg.prepare(beamIndex, -msky);
                 for (long lat = 0; lat < NThetaIndex; ++lat) {
-                    xcomplex<double> Cmm_pos = Cmm(msky + lmax, beamIndex, lat);
-                    xcomplex<double> Cmm_neg = Cmm(-msky + lmax, beamIndex, lat);
+                    xcomplex<double> &Cmm_pos = Cmm(msky + lmax, beamIndex, lat);
+                    xcomplex<double> &Cmm_neg = Cmm(-msky + lmax, beamIndex, lat);
                     int firstl1, firstl2;
                     const levels::arr<double> &dmm = wgen.calc(lat, firstl1);
                     const levels::arr<double> &dmmneg = wgen_neg.calc(lat, firstl2);
@@ -991,8 +1031,8 @@ void convolver::conviqt_hemiscm_single(levels::arr3<xcomplex<double> > &tod,
                         // mb and they have to be interchanged in the convolution
                         const double dMatrixElementmskypos = dsb * dmm[ii];
                         const double dMatrixElementmskyneg = dsb * dmmneg[ii];
-                        const xcomplex<float> sT = slmT(ii, msky);
-                        const xcomplex<float> bT = blmT(ii, beamIndex);
+                        const xcomplex<float> &sT = slmT(ii, msky);
+                        const xcomplex<float> &bT = blmT(ii, beamIndex);
                         const double prod1 = sT.re * bT.re;
                         const double prod3 = sT.im * bT.re;
                         const double prod2 = sT.im * bT.im;
@@ -1043,12 +1083,12 @@ void convolver::conviqt_hemiscm_pol_single(levels::arr3<xcomplex<double> > &tod,
     levels::arr3<xcomplex<double> > Cmm(nphi, npsi, NThetaIndex);
     Cmm.fill(0.);
 
-    Alm< xcomplex<float> > & blmT = b->blmT();
-    Alm< xcomplex<float> > & blmG = b->blmG();
-    Alm< xcomplex<float> > & blmC = b->blmC();
-    Alm< xcomplex<float> > & slmT = s->slmT();
-    Alm< xcomplex<float> > & slmG = s->slmG();
-    Alm< xcomplex<float> > & slmC = s->slmC();
+    Alm< xcomplex<float> > &blmT = b->blmT();
+    Alm< xcomplex<float> > &blmG = b->blmG();
+    Alm< xcomplex<float> > &blmC = b->blmC();
+    Alm< xcomplex<float> > &slmT = s->slmT();
+    Alm< xcomplex<float> > &slmG = s->slmG();
+    Alm< xcomplex<float> > &slmC = s->slmC();
     levels::arr<double> cs(nphi), sn(nphi);
     levels::arr<double> cs0(nphi), sn0(nphi);
 
@@ -1081,19 +1121,19 @@ void convolver::conviqt_hemiscm_pol_single(levels::arr3<xcomplex<double> > &tod,
                     t_wigner_calc += mpiMgr.Wtime() - t1;
                     ++n_wigner_calc;
                     t1 = mpiMgr.Wtime();
-                    xcomplex<double> Cmm_pos = Cmm(msky + lmax, beamIndex, lat);
-                    xcomplex<double> Cmm_neg = Cmm(-msky + lmax, beamIndex, lat);
+                    xcomplex<double> &Cmm_pos = Cmm(msky + lmax, beamIndex, lat);
+                    xcomplex<double> &Cmm_neg = Cmm(-msky + lmax, beamIndex, lat);
                     const int firstl = (firstl1 > firstl2) ? firstl1 : firstl2;
                     for (long ii = firstl; ii <= lmax; ++ii) {
                         // Note that msky in dlm is located to the left
                         // of mb and they have to be interchanged in the convolution
                         const double dMatrixElementmskypos = dsb * dmm[ii];
-                        const xcomplex<float> sT = slmT(ii, msky);
-                        const xcomplex<float> sG = slmG(ii, msky);
-                        const xcomplex<float> sC = slmC(ii, msky);
-                        const xcomplex<float> bT = blmT(ii, beamIndex);
-                        const xcomplex<float> bG = blmG(ii, beamIndex);
-                        const xcomplex<float> bC = blmC(ii, beamIndex);
+                        const xcomplex<float> &sT = slmT(ii, msky);
+                        const xcomplex<float> &sG = slmG(ii, msky);
+                        const xcomplex<float> &sC = slmC(ii, msky);
+                        const xcomplex<float> &bT = blmT(ii, beamIndex);
+                        const xcomplex<float> &bG = blmG(ii, beamIndex);
+                        const xcomplex<float> &bC = blmC(ii, beamIndex);
                         const double prod1 = sT.re * bT.re + sG.re * bG.re + sC.re * bC.re;
                         const double prod3 = sT.im * bT.re + sG.im * bG.re + sC.im * bC.re;
                         const double prod2 = sT.im * bT.im + sG.im * bG.im + sC.im * bC.im;
@@ -1411,6 +1451,46 @@ void convolver::interpolTOD_arrTestcm_pol_v4(levels::arr<double> &outpntarr1,
                                     thetaIndex);
         }
     }
+
+    // DEBUG begin
+    double rms1 = 0, rms2 = 0, rms1tod = 0, rms2tod = 0;
+    for (int iphi = 0; iphi < nphi; ++iphi)
+        {
+            for (int ipsi = 0; ipsi < npsi; ++ipsi)
+                {
+                    for (int ii = 0; ii < NThetaIndex1; ++ii)
+                        {
+                            xcomplex<double> v = TODAsym1(iphi, ipsi, ii);
+                            rms1 += v.re * v.re + v.im * v.im;
+                        }
+                    for (int ii = 0; ii < NThetaIndex2; ++ii)
+                        {
+                            xcomplex<double> v = TODAsym2(iphi, ipsi, ii);
+                            rms2 += v.re * v.re + v.im * v.im;
+                        }
+                }
+        }
+    for (long ii = 0; ii < ntod1; ++ii) rms1tod += TODValue1[ii] * TODValue1[ii];
+    for (long ii = 0; ii < ntod2; ++ii) rms2tod += TODValue2[ii] * TODValue2[ii];
+    for (int core = 0; core < cores; ++core)
+        {
+            if (corenum == core)
+                {
+                    std::cerr << corenum << " :"
+                              << " SUM(TODAsym1^2) = " << rms1
+                              << " SUM(TODAsym2^2) = " << rms2
+                              << " SUM(TOD1^2) = " << rms1tod
+                              << " SUM(TOD2^2) = " << rms2tod
+                              << std::endl << corenum << " :"    
+                              << " RMS(TODAsym1) = " << sqrt(rms1 / (nphi * npsi * NThetaIndex1))
+                              << " RMS(TODAsym2) = " << sqrt(rms2 / (nphi * npsi * NThetaIndex2))
+                              << " RMS(TOD1) = " << sqrt(rms1tod / ntod1)
+                              << " RMS(TOD2) = " << sqrt(rms2tod / ntod2)
+                              << std::endl;
+                }
+            mpiMgr.barrier();
+        }
+    // DEBUG end
 
     if (CMULT_VERBOSITY > 1) {
         std::cout << "Leaving interpolTOD_arrTestcm_pol_v4" << std::endl;
