@@ -102,7 +102,7 @@ convolver::convolver(sky *s, beam *b, detector *d, bool pol,
     ntheta = lmax + 1 + margin;
     dtheta = -pi / (ntheta - margin);
     theta0 = pi - halfmargin * dtheta;
-    inv_delta_theta = 1. / dtheta;
+    inv_delta_theta = 1 / dtheta;
     max_order = 19;
     npoints = order + 1;
     ioffset = order / 2;
@@ -115,6 +115,8 @@ convolver::convolver(sky *s, beam *b, detector *d, bool pol,
     n_alltoall = 0;
     t_todRedistribution5cm = 0;
     n_todRedistribution5cm = 0;
+    t_distribute_colatitudes = 0;
+    n_distribute_colatitudes = 0;
 
     t_todgen_v4 = 0;
     t_arrFillingcm_v2 = 0;
@@ -315,74 +317,104 @@ void convolver::distribute_colatitudes(levels::arr<double> &pntarr,
       stored in corethetaarr.
      */
 
+    double tstart = mpiMgr.Wtime();
+    ++n_distribute_colatitudes;
+
+    // DEBUG begin
+    // cores = 4096;
+    // corethetaarr.resize(cores);
+    // DEBUG end
+
     long totsize_tot = 0;
     mpiMgr.allreduceRaw<long>(&totsize, &totsize_tot, 1, mpiMgr.Sum);
 
     // Build a latitude hit map using the same gridding as ithetacalc
-    // size_t nbin = 10000;
-    // double wbin = halfpi / nbin;
-    arr<int> my_hits(ntheta, 0.), hits(ntheta, 0.);
+    double wbin = -dtheta;
+    long nbin = halfpi / wbin + 1;
+    if (nbin < 4 * cores) {
+        // There are lots of tasks, pay more attention
+        // to the sample distribution than latitudes
+        nbin = 4 * cores;
+        wbin = halfpi / nbin;
+    }
+    arr<int> my_hits(nbin, 0), hits(nbin, 0);
     for (long ii = 0; ii < totsize; ++ii) {
         double beta = pntarr[5 * ii + 1];
-        long itheta = beta_to_itheta(beta);
-        ++my_hits[itheta];
+        if (beta > halfpi) {
+            beta = pi - beta;
+        }
+        long ibin = beta / wbin;
+        ++my_hits[ibin];
     }
-    
+
     mpiMgr.allreduce(my_hits, hits, mpiMgr.Sum);
 
     long nhit_bin = 0;
-    for (long itheta = 0; itheta < ntheta; ++itheta) {
-        if (hits[itheta] > 0) {
+    for (long ibin = 0; ibin < nbin; ++ibin) {
+        if (hits[ibin] > 0) {
             ++nhit_bin;
         }
     }
 
-    // the bin width, dtheta, is negative for convenience elsewhere
-    double thetaleft = -nhit_bin * dtheta;
+    double thetaleft = nhit_bin * wbin;
     long nhitleft = totsize_tot, nbinleft = nhit_bin;
 
     corethetaarr[0] = 0;
-    long itheta = 0;    
-    for (int corenum = cores - 1; corenum > 0; --corenum) {
+    long ibin = -1;
+    for (int corenum = 1; corenum < cores; ++corenum) {
         // Width of the bin is based on remaining latitude
         // and samples, which ever we meet first
-        double divisor = corenum + 1;
+        double divisor = cores - corenum + 1;
         double nbin_target = nbinleft / divisor;
         double dtheta_target = thetaleft / divisor;
         double nhit_target = nhitleft / divisor;
         long bin_hit = 0;
         double bin_width = 0;
         long bin_nbin = 0;
-        while (itheta < ntheta) {
+        while (ibin < nbin) {
+            ++ibin;
+            // if (mpiMgr.master()) std::cerr
+            //                          << " hits[" << ibin << "] = " << hits[ibin]
+            //                          << std::endl; // DEBUG
             // Skip over isolatitudes that have no hits
-            if (hits[itheta] != 0) {
-                bin_hit += hits[itheta];
-                nhitleft -= hits[itheta];
-                bin_width -= dtheta;  // dtheta is negative
-                thetaleft += dtheta;                
+            if (hits[ibin] != 0) {
+                bin_hit += hits[ibin];
+                nhitleft -= hits[ibin];
+                bin_width += wbin;
+                thetaleft -= wbin;
                 ++bin_nbin;
                 --nbinleft;
                 double score1 = bin_hit / nhit_target;
                 double score2 = bin_width / dtheta_target;
                 double score3 = bin_nbin / nbin_target;
                 if (score1 + score2 + score3 > 4 ||
-                    (score1 > 1 && score2 > 1 && score3 > 1)) {
+                    (score1 > 1 && score2 > 1 && score3 > 1) ||
+                    (score1 > 2 || score2 > 2 || score3 > 2)) {
                     break;
                 }
             }
-            ++itheta;
+            if (cores - corenum > nbinleft) {
+                // There is at most one bin for every remaining task
+                break;
+            }
         }
-        double theta = itheta_to_beta1(itheta);        
+        double theta = ibin * wbin;
         corethetaarr[corenum] = theta;
         if (mpiMgr.master()) std::cerr
                                  << " corenum = " << corenum
+                                 << " ibin = " << ibin + 1 << " / " << nbin
                                  << " theta = " << theta * 180 / pi
                                  << " nbinleft = " << nbinleft << " / " << nhit_bin
-                                 << " thetaleft = " << thetaleft * 180 / pi << " / " << -nhit_bin * dtheta * 180 / pi
+                                 << " thetaleft = " << thetaleft * 180 / pi
+                                 << " / " << nhit_bin * wbin * 180 / pi
                                  << " nhitleft = " << nhitleft << " / " << totsize_tot
-                                 << std::endl;
+                                 << std::endl; // DEBUG
     }
-    corethetaarr[0] = 0;
+
+    // DEBUG begin
+    // mpiMgr.barrier();
+    // exit(-1);
+    // DEBUG end
 
     /*
     double dtheta, newtheta, thetaini = halfpi;
@@ -404,6 +436,8 @@ void convolver::distribute_colatitudes(levels::arr<double> &pntarr,
         thetaini = newtheta;
     }
     */
+
+   t_distribute_colatitudes += mpiMgr.Wtime() - tstart;
 }
 
 
@@ -547,7 +581,7 @@ void convolver::todRedistribution5cm(levels::arr<double> pntarr,
         std::cout << "Leaving todRedistribution5cm" << std::endl;
     }
 
-    t_todRedistribution5cm = mpiMgr.Wtime() - tstart;
+    t_todRedistribution5cm += mpiMgr.Wtime() - tstart;
 }
 
 
@@ -685,7 +719,7 @@ long convolver::beta_to_itheta(double beta) {
     if (itheta < 0) {
         itheta = 0;
     }
-    return itheta;    
+    return itheta;
 }
 
 
@@ -714,7 +748,7 @@ void convolver::ithetacalc(levels::arr<long> &itheta0,
     ++n_ithetacalc;
     for (long ii = 0; ii < ntod; ++ii) {
         double beta = outpntarr[5 * ii + 1]; // co-latitude
-        long itheta = beta_to_itheta(beta);        
+        long itheta = beta_to_itheta(beta);
         itheta0[ii] = itheta;
     }
     t_ithetacalc += mpiMgr.Wtime() - tstart;
@@ -1175,8 +1209,9 @@ void convolver::todAnnulus_v3(levels::arr3<xcomplex<double> > &tod,
                     Cmsky[ii] = Cmm(ii, mbeam, lat);
                 }
                 p1.backward(Cmsky);
-                for (long msky = 0; msky < nphi; msky++)
+                for (long msky = 0; msky < nphi; msky++) {
                     tod(msky, mbeam, lat) = Cmsky[msky];
+                }
             }
         } // end of parallel for
 #pragma omp for schedule(static, 8)
@@ -1457,7 +1492,7 @@ void convolver::conviqt_tod_loop_v4(levels::arr<long> &lowerIndex,
 #pragma omp for schedule(static, 1)
         for (int ii = lowerIndex[thetaIndex]; ii >= upperIndex[thetaIndex]; --ii) {
             // Note that the larger the ii the smaller frac is
-            // and the smaller itheta0[ii] is.            
+            // and the smaller itheta0[ii] is.
             double frac = (outpntarr[5 * ii + 1] - theta0) * inv_delta_theta;
             frac -= itheta0[ii];
             weight_ncm(frac, wgt1);
@@ -1853,6 +1888,8 @@ void convolver::report_timing() {
     if (corenum == 0)
         std::cerr << "Conviqt::convolve timing:" << std::endl;
     timing_line(std::string("convolve"), t_convolve, n_convolve);
+    timing_line(std::string("    distribute_colatitudes"),
+                t_distribute_colatitudes, n_distribute_colatitudes);
     timing_line(std::string("    todRedistribution5cm"),
                 t_todRedistribution5cm, n_todRedistribution5cm);
     timing_line(std::string("    todgen_v4"), t_todgen_v4, n_todgen_v4);

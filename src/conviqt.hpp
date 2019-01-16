@@ -40,12 +40,14 @@ namespace conviqt {
 
 class beam {
 public :
-    int read( long beamlmax, long beammmax, bool pol, std::string infile_beam, MPI_Comm comm=MPI_COMM_WORLD );
-    Alm< xcomplex<float> > & blmT( void );
-    Alm< xcomplex<float> > & blmG( void );
-    Alm< xcomplex<float> > & blmC( void );
-    int get_lmax( void ) { return lmax; }
-    int get_mmax( void ) { return mmax; }
+    int read(long beamlmax, long beammmax, bool pol,
+             std::string infile_beam,
+             MPI_Comm comm=MPI_COMM_WORLD);
+    Alm< xcomplex<float> > & blmT(void);
+    Alm< xcomplex<float> > & blmG(void);
+    Alm< xcomplex<float> > & blmC(void);
+    int get_lmax(void) { return lmax; }
+    int get_mmax(void) { return mmax; }
 private :
     Alm< xcomplex<float> > blmT_, blmG_, blmC_;
     long lmax, mmax;
@@ -55,13 +57,16 @@ private :
 
 class sky {
 public :
-    int read( long skylmax, bool pol, std::string infile_sky, double fwhm_deconv_sky=0, MPI_Comm comm=MPI_COMM_WORLD );
-    Alm< xcomplex<float> > & slmT( void );
-    Alm< xcomplex<float> > & slmG( void );
-    Alm< xcomplex<float> > & slmC( void );
-    int get_lmax( void ) { return lmax; }
-    void remove_monopole( void );
-    void remove_dipole( void );
+    int read(long skylmax, bool pol,
+             std::string infile_sky,
+             double fwhm_deconv_sky=0,
+             MPI_Comm comm=MPI_COMM_WORLD);
+    Alm< xcomplex<float> > & slmT(void);
+    Alm< xcomplex<float> > & slmG(void);
+    Alm< xcomplex<float> > & slmC(void);
+    int get_lmax(void) { return lmax; }
+    void remove_monopole(void);
+    void remove_dipole(void);
 private :
     Alm< xcomplex<float> > slmT_, slmG_, slmC_;
     long lmax;
@@ -85,28 +90,29 @@ private :
 
 
 class detector {
-    
+
 public :
-    
+
     detector() {};
     detector(std::string det_id) : det_id_(det_id) {};
     void set_epsilon(double epsilon) { epsilon_ = epsilon; };
     double get_epsilon() {return epsilon_;};
     void set_id(std::string det_id) { det_id_ = det_id; };
     std::string get_id() { return det_id_; };
-    
+
 private :
-    
+
     std::string det_id_;
     double epsilon_;
-    
+
 };
 
 class convolver {
-    
+
 public :
-    
-    convolver(sky *s, beam *b, detector *d, bool pol=false, long lmax=5000, long beammax=14,
+
+    convolver(sky *s, beam *b, detector *d, bool pol=false,
+              long lmax=5000, long beammax=14,
               long order=5, MPI_Comm comm=MPI_COMM_WORLD);
     int convolve(pointing & pnt, bool calibrate=true);
     int set_sky(sky *s);
@@ -114,17 +120,17 @@ public :
     int set_detector(detector *d);
 
 private :
-    
+
     // Variables related to the gridding of the data cube
-    
+
     double phi0, dphi, inv_delta_phi, phioffset, dtheta, theta0, inv_delta_theta;
     long npsi, nphi, halfmargin, margin, ntheta, max_order;
     int npoints, ioffset;
 
     long beta_to_itheta(double beta);
-    double itheta_to_beta1(const long itheta);    
-    double itheta_to_beta2(const long itheta);    
-    
+    double itheta_to_beta1(const long itheta);
+    double itheta_to_beta2(const long itheta);
+
     void distribute_colatitudes(levels::arr<double> &pntarr, const long totsize,
                                 levels::arr<double> &corethetaarr);
     MPI_Manager mpiMgr;
@@ -139,18 +145,20 @@ private :
     double t_convolve, t_todgen_v4, t_arrFillingcm_v2, t_interpolTOD_arrTestcm_v4,
         t_itheta0SetUp, t_ithetacalc, t_conviqt_tod_loop_v4, t_weight_ncm,
         t_conviqt_hemiscm_single, t_conviqt_hemiscm_v4,
-        t_interpolTOD_arrTestcm_pol_v4, t_conviqt_hemiscm_pol_v4, t_conviqt_hemiscm_pol_single,
-        t_conviqt_tod_loop_pol_v5, t_todAnnulus_v3,
+        t_interpolTOD_arrTestcm_pol_v4, t_conviqt_hemiscm_pol_v4,
+        t_conviqt_hemiscm_pol_single, t_conviqt_tod_loop_pol_v5, t_todAnnulus_v3,
         t_wigner_init, t_wigner_prepare, t_wigner_calc,
-        t_lat_iter, t_sincos_iter, t_alltoall, t_todRedistribution5cm;
+        t_lat_iter, t_sincos_iter, t_alltoall, t_todRedistribution5cm,
+        t_distribute_colatitudes;
 
     long n_convolve, n_todgen_v4, n_arrFillingcm_v2, n_interpolTOD_arrTestcm_v4,
         n_itheta0SetUp, n_ithetacalc, n_conviqt_tod_loop_v4, n_weight_ncm,
         n_conviqt_hemiscm_single, n_conviqt_hemiscm_v4,
-        n_interpolTOD_arrTestcm_pol_v4, n_conviqt_hemiscm_pol_v4, n_conviqt_hemiscm_pol_single,
-        n_conviqt_tod_loop_pol_v5, n_todAnnulus_v3,
+        n_interpolTOD_arrTestcm_pol_v4, n_conviqt_hemiscm_pol_v4,
+        n_conviqt_hemiscm_pol_single, n_conviqt_tod_loop_pol_v5, n_todAnnulus_v3,
         n_wigner_init, n_wigner_prepare, n_wigner_calc,
-        n_lat_iter, n_sincos_iter, n_alltoall, n_todRedistribution5cm;
+        n_lat_iter, n_sincos_iter, n_alltoall, n_todRedistribution5cm,
+        n_distribute_colatitudes;
 
     void weight_ncm(double x, levels::arr<double> &wgt);
     void weight_ncm(double x, std::vector<double> &wgt);
@@ -187,7 +195,9 @@ private :
                              levels::arr3<xcomplex<double> > &TODAsym,
                              long thetaIndex,
                              levels::arr<long> &itheta0,
-                             long ntod, levels::arr<double> &TODValue, long lat);
+                             long ntod,
+                             levels::arr<double> &TODValue,
+                             long lat);
 
     void conviqt_tod_loop_pol_v5(levels::arr<long> &lowerIndex,
                                  levels::arr<long> &upperIndex,
@@ -196,12 +206,16 @@ private :
                                  long thetaIndex,
                                  levels::arr<long> &itheta0,
                                  long ntod,
-                                 levels::arr<double> &TODValue, long lat);
+                                 levels::arr<double> &TODValue,
+                                 long lat);
 
-    void thetaDeltaThetacm(int corenum, double thetaini, double &theta, double &deltatheta);
+    void thetaDeltaThetacm(int corenum, double thetaini,
+                           double &theta, double &deltatheta);
     void deltaTheta2(int corenum, double thetaini, levels::arr<double> &dbeta);
-    void ratiobetacalcgreatercm(int &corenum, double theta, levels::arr<double> &corethetaarr);
-    void ratiobetacalcsmallercm(int &corenum, double theta, levels::arr<double> &corethetaarr);
+    void ratiobetacalcgreatercm(int &corenum, double theta,
+                                levels::arr<double> &corethetaarr);
+    void ratiobetacalcsmallercm(int &corenum, double theta,
+                                levels::arr<double> &corethetaarr);
 
     void interpolTOD_arrTestcm_v4(levels::arr<double> &outpntarr1,
                                   levels::arr<double> &outpntarr2,
@@ -227,14 +241,16 @@ private :
                     levels::arr<double> &outpntarr,
                     long ntod);
 
-    void fillingBetaSeg(levels::arr<double> & pntarr, const long arrsize, const double ratiodeltas,
+    void fillingBetaSeg(levels::arr<double> & pntarr, const long arrsize,
+                        const double ratiodeltas,
                         levels::arr<double> &corethetaarr, levels::arr<int> &inBetaSeg);
 
     void todRedistribution5cm(levels::arr<double> pntarr, levels::arr<int> inBetaSeg,
                               levels::arr<int> outBetaSeg, levels::arr<int> &inBetaSegAcc,
                               levels::arr<int> &outBetaSegAcc, long &outBetaSegSize,
                               levels::arr<double> &pntarr2, long totsize,
-                              levels::arr<int> &inOffset, levels::arr<int> &outOffset, double ratiodeltas, levels::arr<double> &corethetaarr );
+                              levels::arr<int> &inOffset, levels::arr<int> &outOffset,
+                              double ratiodeltas, levels::arr<double> &corethetaarr);
 
     void todgen_v4(long ntod1, long ntod2,
                    levels::arr<double> &todTest_arr,
@@ -260,25 +276,25 @@ private :
 
 // wignercalc.cpp
 
-double xpow( int expo, double val );
-void wignerCalc( tsize n, tsize mmax, double theta, levels::arr2<double> &d );
-void wignerCalcGeneral( tsize n, tsize mmax, double theta, levels::arr2<double> &d );
-void wignerCalcHalfpi( tsize n, tsize mmax, levels::arr2<double> &d );
-double wignerCalc00_halfpi( tsize n );
-double wignerCalc00( double theta, tsize n );
+double xpow(int expo, double val);
+void wignerCalc(tsize n, tsize mmax, double theta, levels::arr2<double> &d);
+void wignerCalcGeneral(tsize n, tsize mmax, double theta, levels::arr2<double> &d);
+void wignerCalcHalfpi(tsize n, tsize mmax, levels::arr2<double> &d);
+double wignerCalc00_halfpi(tsize n);
+double wignerCalc00(double theta, tsize n);
 
 // conviqt_util.cpp
 
-void sift_down_DL( levels::arr<double> &ra, levels::arr<long> &brr, const int l, const int r );
-void hpsort_DL( levels::arr<double> &ra, levels::arr<long> &brr );
-void sift_down_arrTheta( levels::arr<double> &ra, const int l, const int r );
-void hpsort_arrTheta( levels::arr<double> &ra );
-void sift_down_arrTOD( levels::arr<double> &ra, const int l, const int r );
-void hpsort_arrTOD( levels::arr<double> &ra );
-void sift_down_arrTime( levels::arr<double> &ra, const int l, const int r );
-void hpsort_arrTime( levels::arr<double> &ra );
-void sift_down_DDcm( levels::arr<double> &ra, levels::arr<double> &brr, const int l, const int r );
-void hpsort_DDcm( levels::arr<double> &ra, levels::arr<double> &brr );
+void sift_down_DL(levels::arr<double> &ra, levels::arr<long> &brr, const int l, const int r);
+void hpsort_DL(levels::arr<double> &ra, levels::arr<long> &brr);
+void sift_down_arrTheta(levels::arr<double> &ra, const int l, const int r);
+void hpsort_arrTheta(levels::arr<double> &ra);
+void sift_down_arrTOD(levels::arr<double> &ra, const int l, const int r);
+void hpsort_arrTOD(levels::arr<double> &ra );
+void sift_down_arrTime(levels::arr<double> &ra, const int l, const int r);
+void hpsort_arrTime(levels::arr<double> &ra);
+void sift_down_DDcm(levels::arr<double> &ra, levels::arr<double> &brr, const int l, const int r);
+void hpsort_DDcm(levels::arr<double> &ra, levels::arr<double> &brr);
 
 } // namespace conviqt
 
