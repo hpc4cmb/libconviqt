@@ -372,6 +372,9 @@ void convolver::distribute_colatitudes(levels::arr<double> &pntarr,
     double thetaleft = nhit_bin * wbin;
     long nhitleft = totsize_tot, nbinleft = nhit_bin;
 
+    double min_width = npoints * fabs(dtheta);
+    double min_nbin = double(npoints * nbin) / (0.5 * lmax);
+    
     corethetaarr[0] = 0;
     long ibin = -1;
     for (int corenum = 1; corenum < cores; ++corenum) {
@@ -395,8 +398,8 @@ void convolver::distribute_colatitudes(levels::arr<double> &pntarr,
                 ++bin_nbin;
                 --nbinleft;
                 double score1 = bin_hit / nhit_target;
-                double score2 = bin_width / dtheta_target;
-                double score3 = bin_nbin / nbin_target;
+                double score2 = (bin_width + min_width) / (dtheta_target + min_width);
+                double score3 = (bin_nbin + min_nbin) / (nbin_target + min_nbin);
                 if (mpiMgr.master()) std::cerr
                                          << " corenum = " << corenum
                                          << " ibin = " << ibin
@@ -405,7 +408,7 @@ void convolver::distribute_colatitudes(levels::arr<double> &pntarr,
                                          << " score3 = " << score3
                                          << std::endl;
                 if (score1 + score2 + score3 > 4 ||
-                    (score1 > .9 && score2 > .9 && score3 > .9) ||
+                    (score1 > 1 && score2 > 1 && score3 > 1) ||
                     (score1 > 1.5 || score2 > 1.5 || score3 > 1.5)) {
                     break;
                 }
