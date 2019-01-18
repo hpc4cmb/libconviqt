@@ -144,45 +144,55 @@ private :
 
     double t_convolve, t_todgen, t_arrFillingcm, t_interpolTOD_arrTestcm,
         t_itheta0SetUp, t_ithetacalc, t_conviqt_tod_loop, t_weight_ncm,
-        t_conviqt_hemiscm_single, t_conviqt_hemiscm,
-        t_interpolTOD_arrTestcm_pol, t_conviqt_hemiscm_pol,
-        t_conviqt_hemiscm_pol_single, t_conviqt_tod_loop_pol, t_todAnnulus,
+        t_conviqt_hemiscm_alltoall,
+        t_interpolTOD_arrTestcm_pol, t_conviqt_tod_loop_pol, t_todAnnulus,
         t_wigner_init, t_wigner_prepare, t_wigner_calc,
-        t_lat_iter, t_sincos_iter, t_alltoall, t_todRedistribution5cm,
-        t_distribute_colatitudes;
+        t_lat_iter, t_alltoall, t_todRedistribution5cm,
+        t_distribute_colatitudes, t_conviqt_hemiscm_pol_alltoall, t_alltoall_datacube;
 
     long n_convolve, n_todgen, n_arrFillingcm, n_interpolTOD_arrTestcm,
         n_itheta0SetUp, n_ithetacalc, n_conviqt_tod_loop, n_weight_ncm,
-        n_conviqt_hemiscm_single, n_conviqt_hemiscm,
-        n_interpolTOD_arrTestcm_pol, n_conviqt_hemiscm_pol,
-        n_conviqt_hemiscm_pol_single, n_conviqt_tod_loop_pol, n_todAnnulus,
+        n_conviqt_hemiscm_alltoall,
+        n_interpolTOD_arrTestcm_pol, n_conviqt_tod_loop_pol, n_todAnnulus,
         n_wigner_init, n_wigner_prepare, n_wigner_calc,
-        n_lat_iter, n_sincos_iter, n_alltoall, n_todRedistribution5cm,
-        n_distribute_colatitudes;
+        n_lat_iter, n_alltoall, n_todRedistribution5cm,
+        n_distribute_colatitudes, n_conviqt_hemiscm_pol_alltoall, n_alltoall_datacube;
 
     void weight_ncm(double x, levels::arr<double> &wgt);
     void weight_ncm(double x, std::vector<double> &wgt);
 
-    void conviqt_hemiscm(levels::arr3<xcomplex<double> > &tod1,
-                         levels::arr3<xcomplex<double> > &tod2,
-                         long NThetaIndex1,
-                         levels::arr<double> &rthetas);
+    void get_latitude_tables(const long NThetaIndex1,
+                             const long NThetaIndex2,
+                             const int ithetaoffset1,
+                             const int ithetaoffset2,
+                             std::vector<char> &need_itheta1_core,
+                             std::vector<char> &need_itheta2_core,
+                             std::vector<long> &my_itheta,
+                             std::vector<int> &itheta_core);
 
-    void conviqt_hemiscm_pol(levels::arr3<xcomplex<double> > &tod1,
-                             levels::arr3<xcomplex<double> > &tod2,
-                             long NThetaIndex1,
-                             levels::arr<double> &rthetas);
+    void conviqt_hemiscm_alltoall(levels::arr3< xcomplex<double> > &tod1,
+                                  levels::arr3< xcomplex<double> > &tod2,
+                                  long NThetaIndex1,
+                                  long NThetaIndex2,
+                                  int ithetaoffset1,
+                                  int ithetaoffset2);
 
-    void conviqt_hemiscm_single(levels::arr3<xcomplex<double> > &tod1,
-                                long NThetaIndex1,
-                                levels::arr<double> &rthetas);
+    void conviqt_hemiscm_pol_alltoall(levels::arr3< xcomplex<double> > &tod1,
+                                      levels::arr3< xcomplex<double> > &tod2,
+                                      long NThetaIndex1,
+                                      long NThetaIndex2,
+                                      int ithetaoffset1,
+                                      int ithetaoffset2);
 
-    void conviqt_hemiscm_pol_single(levels::arr3<xcomplex<double> > &tod1,
-                                    long NThetaIndex1,
-                                    levels::arr<double> &rthetas);
+    void alltoall_datacube(std::vector<char> &need_itheta_core,
+                           std::vector<int> &itheta_core,
+                           std::vector<long> &my_itheta,
+                           levels::arr3< xcomplex<double> > &my_tod,
+                           levels::arr3< xcomplex<double> > &tod,
+                           const long ithetaoffset, const long NThetaIndex);
 
-    void todAnnulus(levels::arr3<xcomplex<double> > &tod1,
-                    levels::arr3<xcomplex<double> > &Cmm,
+    void todAnnulus(levels::arr3< xcomplex<double> > &tod1,
+                    levels::arr3< xcomplex<double> > &Cmm,
                     levels::arr<double> &cs,
                     levels::arr<double> &sn,
                     levels::arr<double> &cs0,
@@ -192,7 +202,7 @@ private :
     void conviqt_tod_loop(levels::arr<long> &lowerIndex,
                           levels::arr<long> &upperIndex,
                           levels::arr<double> &outpntarr,
-                          levels::arr3<xcomplex<double> > &TODAsym,
+                          levels::arr3< xcomplex<double> > &TODAsym,
                           long thetaIndex,
                           levels::arr<long> &itheta0,
                           long ntod,
@@ -202,7 +212,7 @@ private :
     void conviqt_tod_loop_pol(levels::arr<long> &lowerIndex,
                               levels::arr<long> &upperIndex,
                               levels::arr<double> &outpntarr,
-                              levels::arr3<xcomplex<double> > &TODAsym,
+                              levels::arr3< xcomplex<double> > &TODAsym,
                               long thetaIndex,
                               levels::arr<long> &itheta0,
                               long ntod,

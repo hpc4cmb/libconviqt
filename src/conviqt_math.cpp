@@ -22,23 +22,14 @@
           void interpolTOD_arrTestcm()
               void itheta0SetUp()
                   void ithetacalc()
-              void conviqt_hemiscm_single()
-                  void todAnnulus()
-              void conviqt_hemiscm()
+              void conviqt_hemiscm_alltoall()
                   void todAnnulus()
               void conviqt_tod_loop()
                   void weight_ncm()
           void interpolTOD_arrTestcm_pol()
               void itheta0SetUp()
                   void ithetacalc()
-              EITHER
-              void conviqt_hemiscm_pol()
-                  wignergen()
-                  wignergen.prepare()
-                  wignergen.calc()
-                  void todAnnulus()
-              OR
-              void conviqt_hemiscm_pol_single()
+              void conviqt_hemiscm_pol_alltoall()
                   wignergen()
                   wignergen.prepare()
                   wignergen.calc()
@@ -103,7 +94,7 @@ convolver::convolver(sky *s, beam *b, detector *d, bool pol,
     } else if (beammmax > mmax_beam) {
         throw std::runtime_error("Convolver mmax exceeds input expansion order.");
     }
-    
+
     // data cube gridding
 
     phi0 = halfpi;
@@ -139,13 +130,12 @@ convolver::convolver(sky *s, beam *b, detector *d, bool pol,
     t_itheta0SetUp = 0;
     t_ithetacalc = 0;
     t_conviqt_tod_loop = 0;
-    t_conviqt_hemiscm_single = 0;
+    t_conviqt_hemiscm_alltoall = 0;
     t_todAnnulus = 0;
-    t_conviqt_hemiscm = 0;
     t_interpolTOD_arrTestcm_pol = 0;
-    t_conviqt_hemiscm_pol = 0;
-    t_conviqt_hemiscm_pol_single = 0;
     t_conviqt_tod_loop_pol = 0;
+    t_conviqt_hemiscm_pol_alltoall = 0;
+    t_alltoall_datacube = 0;
 
     n_todgen = 0;
     n_arrFillingcm = 0;
@@ -153,13 +143,12 @@ convolver::convolver(sky *s, beam *b, detector *d, bool pol,
     n_itheta0SetUp = 0;
     n_ithetacalc = 0;
     n_conviqt_tod_loop = 0;
-    n_conviqt_hemiscm_single = 0;
+    n_conviqt_hemiscm_alltoall = 0;
     n_todAnnulus = 0;
-    n_conviqt_hemiscm = 0;
     n_interpolTOD_arrTestcm_pol = 0;
-    n_conviqt_hemiscm_pol = 0;
-    n_conviqt_hemiscm_pol_single = 0;
     n_conviqt_tod_loop_pol = 0;
+    n_conviqt_hemiscm_pol_alltoall = 0;
+    n_alltoall_datacube = 0;
 
     t_wigner_init = 0;
     t_wigner_prepare = 0;
@@ -170,10 +159,8 @@ convolver::convolver(sky *s, beam *b, detector *d, bool pol,
     n_wigner_calc = 0;
 
     t_lat_iter = 0;
-    t_sincos_iter = 0;
 
     n_lat_iter = 0;
-    n_sincos_iter = 0;
 
     t_weight_ncm = 0;
     n_weight_ncm = 0;
@@ -341,15 +328,10 @@ void convolver::distribute_colatitudes(levels::arr<double> &pntarr,
     long totsize_tot = 0;
     mpiMgr.allreduceRaw<long>(&totsize, &totsize_tot, 1, mpiMgr.Sum);
 
-    // Build a latitude hit map using the same gridding as ithetacalc
-    double wbin = -dtheta;
-    long nbin = halfpi / wbin + 1;
-    if (nbin < 10 * cores) {
-        // There are lots of tasks, pay more attention
-        // to the sample distribution than latitudes
-        nbin = 10 * cores;
-        wbin = halfpi / nbin;
-    }
+    // Build a latitude hit map
+
+    long nbin = 100000;
+    double wbin = halfpi / nbin;
     arr<int> my_hits(nbin, 0), hits(nbin, 0);
     for (long ii = 0; ii < totsize; ++ii) {
         double beta = pntarr[5 * ii + 1];
@@ -362,60 +344,25 @@ void convolver::distribute_colatitudes(levels::arr<double> &pntarr,
 
     mpiMgr.allreduce(my_hits, hits, mpiMgr.Sum);
 
-    long nhit_bin = 0;
-    for (long ibin = 0; ibin < nbin; ++ibin) {
-        if (hits[ibin] > 0) {
-            ++nhit_bin;
-        }
-    }
+    long nhitleft = totsize_tot;
 
-    double thetaleft = nhit_bin * wbin;
-    long nhitleft = totsize_tot, nbinleft = nhit_bin;
-
-    double min_width = npoints * fabs(dtheta);
-    double min_nbin = double(npoints * nbin) / (0.5 * lmax);
-    
     corethetaarr[0] = 0;
     long ibin = -1;
     for (int corenum = 1; corenum < cores; ++corenum) {
         // Width of the bin is based on remaining latitude
         // and samples, which ever we meet first
         double divisor = cores - corenum + 1;
-        double nbin_target = nbinleft / divisor;
-        double dtheta_target = thetaleft / divisor;
         double nhit_target = nhitleft / divisor;
         long bin_hit = 0;
-        double bin_width = 0;
-        long bin_nbin = 0;
         while (ibin < nbin) {
             ++ibin;
             // Skip over isolatitudes that have no hits
             if (hits[ibin] != 0) {
                 bin_hit += hits[ibin];
                 nhitleft -= hits[ibin];
-                bin_width += wbin;
-                thetaleft -= wbin;
-                ++bin_nbin;
-                --nbinleft;
-                double score1 = bin_hit / nhit_target;
-                double score2 = (bin_width + min_width) / (dtheta_target + min_width);
-                double score3 = (bin_nbin + min_nbin) / (nbin_target + min_nbin);
-                if (mpiMgr.master()) std::cerr
-                                         << " corenum = " << corenum
-                                         << " ibin = " << ibin
-                                         << " score1 = " << score1
-                                         << " score2 = " << score2
-                                         << " score3 = " << score3
-                                         << std::endl;
-                if (score1 + score2 + score3 > 4 ||
-                    (score1 > 1 && score2 > 1 && score3 > 1) ||
-                    (score1 > 1.5 || score2 > 1.5 || score3 > 1.5)) {
+                if (bin_hit >= nhit_target) {
                     break;
                 }
-            }
-            if (cores - corenum > nbinleft) {
-                // There is at most one bin for every remaining task
-                break;
             }
         }
         double theta = ibin * wbin;
@@ -424,40 +371,12 @@ void convolver::distribute_colatitudes(levels::arr<double> &pntarr,
                                  << " corenum = " << corenum
                                  << " ibin = " << ibin  << " / " << nbin
                                  << " theta = " << theta * 180 / pi
-                                 << " nbinleft = " << nbinleft << " / " << nhit_bin
-                                 << " thetaleft = " << thetaleft * 180 / pi
-                                 << " / " << nhit_bin * wbin * 180 / pi
+                                 << " bin_hit = " << bin_hit
                                  << " nhitleft = " << nhitleft << " / " << totsize_tot
                                  << std::endl; // DEBUG
     }
 
-    // DEBUG begin
-    // mpiMgr.barrier();
-    // exit(-1);
-    // DEBUG end
-
-    /*
-    double dtheta, newtheta, thetaini = halfpi;
-    for (int corenum = cores - 1; corenum >= 0; --corenum) {
-        if (thetaini > 0.18) {
-            thetaDeltaThetacm(corenum, thetaini, newtheta, dtheta);
-        } else {
-            levels::arr<double> dbeta;
-            deltaTheta2(corenum, thetaini, dbeta);
-            for (long jj = corenum; jj >= 0; --jj) {
-                newtheta -= dbeta[jj];
-                corethetaarr[jj] = newtheta;
-                thetaini = newtheta;
-            }
-            corethetaarr[0] = 0;
-            break;
-        }
-        corethetaarr[corenum] = newtheta;
-        thetaini = newtheta;
-    }
-    */
-
-   t_distribute_colatitudes += mpiMgr.Wtime() - tstart;
+    t_distribute_colatitudes += mpiMgr.Wtime() - tstart;
 }
 
 
@@ -474,7 +393,7 @@ void convolver::fillingBetaSeg(levels::arr<double> &pntarr,
     if (CMULT_VERBOSITY > 1) {
         std::cerr << "Entered fillingBetaSeg in core = " << corenum << std::endl;
     }
-    
+
     inBetaSeg.alloc(cores);
     inBetaSeg.fill(0);
 
@@ -544,7 +463,7 @@ void convolver::todRedistribution5cm(levels::arr<double> pntarr,
     if (CMULT_VERBOSITY > 1) {
         std::cerr << "Entered todRedistribution5cm" << std::endl;
     }
-    
+
     inBetaSegAcc.alloc(cores);
     inBetaSegAcc.fill(0);
     outBetaSegAcc.alloc(cores);
@@ -659,7 +578,7 @@ void convolver::todgen(const long ntod1, const long ntod2,
         std::cerr << "corenum = " << corenum << "  order = " << order
                   << "  ntod1 = " << ntod1 << "  ntod2 = " << ntod2 << std::endl;
     }
-    
+
     mpiMgr.barrier();
     if (!pol) {
         interpolTOD_arrTestcm(outpntarr1, outpntarr2,
@@ -779,23 +698,54 @@ void convolver::ithetacalc(levels::arr<long> &itheta0,
 }
 
 
-void convolver::conviqt_hemiscm(levels::arr3<xcomplex<double> > &tod1,
-                                   levels::arr3<xcomplex<double> > &tod2,
-                                   long NThetaIndex1,
-                                   levels::arr<double> &rthetas) {
+void convolver::conviqt_hemiscm_alltoall(levels::arr3<xcomplex<double> > &tod1,
+                                         levels::arr3<xcomplex<double> > &tod2,
+                                         long NThetaIndex1,
+                                         long NThetaIndex2,
+                                         int ithetaoffset1,
+                                         int ithetaoffset2) {
     if (CMULT_VERBOSITY > 1) {
-        std::cerr << "Entering conviqt_hemiscm "
-                  << " nphi = " << nphi
-                  << " npsi = " << npsi
-                  << " NThetaIndex1 = " << NThetaIndex1
-                  << std::endl;
+        std::cerr << corenum << " : Entering conviqt_hemiscm_alltoall" << std::endl;
     }
     double tstart = mpiMgr.Wtime();
-    ++n_conviqt_hemiscm;
-    levels::arr3<xcomplex<double> > Cmm(nphi, npsi, NThetaIndex1);
-    Cmm.fill(0.);
-    levels::arr3<xcomplex<double> > Cmm2(nphi, npsi, NThetaIndex1);
-    Cmm2.fill(0.);
+    ++n_conviqt_hemiscm_alltoall;
+
+    std::vector<char> need_itheta1_core;
+    std::vector<char> need_itheta2_core;
+    std::vector<int> itheta_core;  // Cores assigned to each latitude
+    std::vector<long> my_itheta;  // Locally assigned latitudes
+
+    get_latitude_tables(NThetaIndex1, NThetaIndex2, ithetaoffset1, ithetaoffset2,
+                        need_itheta1_core, need_itheta2_core, my_itheta, itheta_core);
+
+    long my_ntheta = my_itheta.size();
+
+    levels::arr<double> rthetas(my_ntheta);
+    for (long itheta_local = 0; itheta_local < my_ntheta; ++itheta_local) {
+        long itheta_global = my_itheta[itheta_local];
+        rthetas[itheta_local] = itheta_to_beta1(itheta_global);
+    }
+
+    // Locally owned part of the data cube
+
+    levels::arr3< xcomplex<double> > my_Cmm1, my_Cmm2, my_tod1, my_tod2;
+
+    try {
+        my_Cmm1.alloc(nphi, npsi, my_ntheta);
+        my_Cmm2.alloc(nphi, npsi, my_ntheta);
+        my_tod1.alloc(nphi, npsi, my_ntheta);
+        my_tod2.alloc(nphi, npsi, my_ntheta);
+    } catch (std::bad_alloc &e) {
+        std::cerr << "conviqt_hemiscm_pol_alltoall :  Out of memory allocating "
+                  << nphi * npsi * my_ntheta * 4 * 2 * 8. / 1024 / 1024
+                  << "MB for locally owned data cube" << std::endl;
+        throw;
+    }
+
+    my_Cmm1.fill(0.);
+    my_Cmm2.fill(0.);
+    my_tod1.fill(0.);
+    my_tod2.fill(0.);
 
     Alm< xcomplex<float> > &blmT = b->blmT();
     Alm< xcomplex<float> > &slmT = s->slmT();
@@ -817,11 +767,11 @@ void convolver::conviqt_hemiscm(levels::arr3<xcomplex<double> > &tod1,
                 //     continue; // negligible dmm
                 wgen.prepare(mbeam, msky);
                 wgen_neg.prepare(mbeam, -msky);
-                for (long lat = 0; lat < NThetaIndex1; ++lat) {
-                    xcomplex<double> Cmm_pos = Cmm(msky + lmax, mbeam, lat);
-                    xcomplex<double> Cmm_neg = Cmm(-msky + lmax, mbeam, lat);
-                    xcomplex<double> Cmm2_pos = Cmm2(msky + lmax, mbeam, lat);
-                    xcomplex<double> Cmm2_neg = Cmm2(-msky + lmax, mbeam, lat);
+                for (long lat = 0; lat < my_ntheta; ++lat) {
+                    xcomplex<double> Cmm1_pos = my_Cmm1(msky + lmax, mbeam, lat);
+                    xcomplex<double> Cmm1_neg = my_Cmm1(-msky + lmax, mbeam, lat);
+                    xcomplex<double> Cmm2_pos = my_Cmm2(msky + lmax, mbeam, lat);
+                    xcomplex<double> Cmm2_neg = my_Cmm2(-msky + lmax, mbeam, lat);
                     int firstl1, firstl2;
                     const levels::arr<double> &dmm = wgen.calc(lat, firstl1);
                     const levels::arr<double> &dmmneg = wgen_neg.calc(lat, firstl2);
@@ -847,8 +797,8 @@ void convolver::conviqt_hemiscm(levels::arr3<xcomplex<double> > &tod1,
                         const double xtmp_2 = tmp_2 * dMatrixElementmskypos;
                         const double xtmp_5 = tmp_1 * dMatrixElementmskypos2;
                         const double xtmp_6 = tmp_2 * dMatrixElementmskypos2;
-                        Cmm_pos.re += xtmp_1;
-                        Cmm_pos.im += xtmp_2;
+                        Cmm1_pos.re += xtmp_1;
+                        Cmm1_pos.im += xtmp_2;
                         Cmm2_pos.re += xtmp_5;
                         Cmm2_pos.im += xtmp_6;
                         if (msky != 0) {
@@ -858,8 +808,8 @@ void convolver::conviqt_hemiscm(levels::arr3<xcomplex<double> > &tod1,
                             const double xtmp_4 = tmp_4 * dMatrixElementmskyneg;
                             const double xtmp_7 = tmp_3 * dMatrixElementmskyneg2;
                             const double xtmp_8 = tmp_4 * dMatrixElementmskyneg2;
-                            Cmm_neg.re += xtmp_3;
-                            Cmm_neg.im += xtmp_4;
+                            Cmm1_neg.re += xtmp_3;
+                            Cmm1_neg.im += xtmp_4;
                             Cmm2_neg.re += xtmp_7;
                             Cmm2_neg.im += xtmp_8;
                         }
@@ -867,44 +817,173 @@ void convolver::conviqt_hemiscm(levels::arr3<xcomplex<double> > &tod1,
                 }
             }
         }
-        const double lmaxinv = 2 * pi * lmax / (2. * lmax + 1.);
+
+        const double lmaxinv = double(2 * pi * lmax) / double(2 * lmax + 1);
 #pragma omp for schedule(static, 8)
         for (long msky = -lmax; msky <= lmax; ++msky) {
             double arg = -halfpi * msky;
             long ii = lmax + msky;
             cs[ii] = cos(arg);
             sn[ii] = sin(arg);
-            // arg = 2.*pi*(msky+lmax)*lmax/(2.*lmax+1.);
             arg = ii * lmaxinv;
             cs0[ii] = cos(arg);
             sn0[ii] = sin(arg);
         }
-    }
+    } // End of parallel section
 
-    todAnnulus(tod1, Cmm, cs, sn, cs0, sn0, NThetaIndex1);
-    todAnnulus(tod2, Cmm2, cs, sn, cs0, sn0, NThetaIndex1);
+    todAnnulus(my_tod1, my_Cmm1, cs, sn, cs0, sn0, my_ntheta);
+    todAnnulus(my_tod2, my_Cmm2, cs, sn, cs0, sn0, my_ntheta);
 
-    t_conviqt_hemiscm += mpiMgr.Wtime() - tstart;
-    
+    alltoall_datacube(need_itheta1_core, itheta_core, my_itheta, my_tod1, tod1,
+                      ithetaoffset1, NThetaIndex1);
+    alltoall_datacube(need_itheta2_core, itheta_core, my_itheta, my_tod2, tod2,
+                      ithetaoffset2, NThetaIndex2);
+
+    t_conviqt_hemiscm_alltoall += mpiMgr.Wtime() - tstart;
+
     if (CMULT_VERBOSITY > 1) {
-        std::cerr << "Exiting conviqt_hemiscm" << std::endl;
+        std::cerr << corenum << " : Exiting conviqt_hemiscm_alltoall" << std::endl;
     }
 }
 
 
-void convolver::conviqt_hemiscm_pol(levels::arr3< xcomplex<double> > &tod1,
-                                       levels::arr3< xcomplex<double> > &tod2,
-                                       const long NThetaIndex,
-                                       levels::arr<double> &rthetas) {
+void convolver::get_latitude_tables(const long NThetaIndex1,
+                                    const long NThetaIndex2,
+                                    const int ithetaoffset1,
+                                    const int ithetaoffset2,
+                                    std::vector<char> &need_itheta1_core,
+                                    std::vector<char> &need_itheta2_core,
+                                    std::vector<long> &my_itheta,
+                                    std::vector<int> &itheta_core) {
+
+    // Local tables of required latitudes
+
+    std::vector<char> my_need_itheta1(ntheta, false);
+    std::vector<char> my_need_itheta2(ntheta, false);
+
+    for (int itheta = 0; itheta < NThetaIndex1; ++itheta) {
+        my_need_itheta1[ithetaoffset1 + itheta] = true;
+    }
+
+    for (int itheta = 0; itheta < NThetaIndex2; ++itheta) {
+        my_need_itheta2[ithetaoffset2 + itheta] = true;
+    }
+
+    // Global tables of required latitudes
+
+    std::vector<char> need_itheta1(ntheta);
+    std::vector<char> need_itheta2(ntheta);
+    std::vector<char> need_itheta(ntheta);
+    int err;
+
+    err = MPI_Allreduce(my_need_itheta1.data(), need_itheta1.data(),
+                        int(ntheta), MPI_CHAR, MPI_BOR, mpiMgr.comm());
+    if (err) throw std::runtime_error("Failed to reduce need_itheta1");
+
+    err = MPI_Allreduce(my_need_itheta2.data(), need_itheta2.data(),
+                        int(ntheta), MPI_CHAR, MPI_BOR, mpiMgr.comm());
+    if (err) throw std::runtime_error("Failed to reduce need_itheta2");
+
+    need_itheta1_core.resize(ntheta * cores);
+    err = MPI_Allgather(my_need_itheta1.data(), int(ntheta), MPI_CHAR,
+                        need_itheta1_core.data(), int(ntheta), MPI_CHAR,
+                        mpiMgr.comm());
+    if (err) throw std::runtime_error("Failed to gather need_itheta1_core");
+
+    need_itheta2_core.resize(ntheta * cores);
+    err = MPI_Allgather(my_need_itheta2.data(), int(ntheta), MPI_CHAR,
+                        need_itheta2_core.data(), int(ntheta), MPI_CHAR,
+                        mpiMgr.comm());
+    if (err) throw std::runtime_error("Failed to gather need_itheta2_core");
+
+    // Collapse needed indices between North and South hemisphere
+
+    long ntheta_need = 0;  // Total number of required latitudes
+    for (long itheta = 0; itheta < ntheta; ++itheta) {
+        if (need_itheta1[itheta] or need_itheta2[itheta]) {
+            need_itheta[itheta] = true;
+            ++ntheta_need;
+        }
+    }
+
+    // Assign each latitude to exactly one core
+
+    itheta_core.resize(ntheta, -1);
+    // Number of latitudes per core
+    long ntheta_core = ceil(ntheta_need / double(cores));
+    long core = 0;
+    long nassigned = 0;
+    long nleft = ntheta_need;
+
+    for (long itheta = 0; itheta < ntheta; ++itheta) {
+        if (need_itheta[itheta]) {
+            itheta_core[itheta] = core;
+            if (core == corenum) {
+                my_itheta.push_back(itheta);
+            }
+            ++nassigned;
+            --nleft;
+            if (nassigned == ntheta_core) {
+                ++core;
+                nassigned = 0;
+                // Adjust latitudes per core to avoid cores not
+                // having any latitudes
+                ntheta_core = ceil(nleft / double(cores - core));
+            }
+        }
+    }
+}
+
+
+
+void convolver::conviqt_hemiscm_pol_alltoall(levels::arr3< xcomplex<double> > &tod1,
+                                             levels::arr3< xcomplex<double> > &tod2,
+                                             const long NThetaIndex1,
+                                             const long NThetaIndex2,
+                                             int ithetaoffset1,
+                                             int ithetaoffset2) {
     if (CMULT_VERBOSITY > 1) {
-        std::cerr << "Entering conviqt_hemiscm_pol" << std::endl;
+        std::cerr << corenum << " : Entering conviqt_hemiscm_pol_alltoall" << std::endl;
     }
     double tstart = mpiMgr.Wtime();
-    ++n_conviqt_hemiscm_pol;
-    levels::arr3< xcomplex<double> > Cmm1(nphi, npsi, NThetaIndex);
-    Cmm1.fill(0.);
-    levels::arr3< xcomplex<double> > Cmm2(nphi, npsi, NThetaIndex);
-    Cmm2.fill(0.);
+    ++n_conviqt_hemiscm_pol_alltoall;
+
+    std::vector<char> need_itheta1_core;
+    std::vector<char> need_itheta2_core;
+    std::vector<int> itheta_core;  // Cores assigned to each latitude
+    std::vector<long> my_itheta;  // Locally assigned latitudes
+
+    get_latitude_tables(NThetaIndex1, NThetaIndex2, ithetaoffset1, ithetaoffset2,
+                        need_itheta1_core, need_itheta2_core, my_itheta, itheta_core);
+
+    long my_ntheta = my_itheta.size();
+
+    levels::arr<double> rthetas(my_ntheta);
+    for (long itheta_local = 0; itheta_local < my_ntheta; ++itheta_local) {
+        long itheta_global = my_itheta[itheta_local];
+        rthetas[itheta_local] = itheta_to_beta1(itheta_global);
+    }
+
+    // Locally owned part of the data cube
+
+    levels::arr3< xcomplex<double> > my_Cmm1, my_Cmm2, my_tod1, my_tod2;
+
+    try {
+        my_Cmm1.alloc(nphi, npsi, my_ntheta);
+        my_Cmm2.alloc(nphi, npsi, my_ntheta);
+        my_tod1.alloc(nphi, npsi, my_ntheta);
+        my_tod2.alloc(nphi, npsi, my_ntheta);
+    } catch (std::bad_alloc &e) {
+        std::cerr << "conviqt_hemiscm_pol_alltoall :  Out of memory allocating "
+                  << nphi * npsi * my_ntheta * 4 * 2 * 8. / 1024 / 1024
+                  << "MB for locally owned data cube" << std::endl;
+        throw;
+    }
+
+    my_Cmm1.fill(0.);
+    my_Cmm2.fill(0.);
+    my_tod1.fill(0.);
+    my_tod2.fill(0.);
 
     Alm< xcomplex<float> > &blmT = b->blmT();
     Alm< xcomplex<float> > &blmG = b->blmG();
@@ -929,25 +1008,25 @@ void convolver::conviqt_hemiscm_pol(levels::arr3< xcomplex<double> > &tod1,
                 const double dsign = levels::xpow(msky, 1);
                 const double dsb = dsign * dsignb;
                 //estimator.prepare_m(mbeam, msky);
-                // if (estimator.canSkip(rthetas[NThetaIndex - 1]))
+                // if (estimator.canSkip(rthetas[my_ntheta - 1]))
                 //     continue; // negligible dmm
                 t1 = mpiMgr.Wtime();
                 wgen.prepare(mbeam, msky);
                 wgen_neg.prepare(mbeam, -msky);
                 t_wigner_prepare += mpiMgr.Wtime() - t1;
                 ++n_wigner_prepare;
-                for (long lat = 0; lat < NThetaIndex; ++lat) {
+                for (long itheta = 0; itheta < my_ntheta; ++itheta) {
                     int firstl1, firstl2;
                     t1 = mpiMgr.Wtime();
-                    const levels::arr<double> &dmm = wgen.calc(lat, firstl1);
-                    const levels::arr<double> &dmmneg = wgen_neg.calc(lat, firstl2);
+                    const levels::arr<double> &dmm = wgen.calc(itheta, firstl1);
+                    const levels::arr<double> &dmmneg = wgen_neg.calc(itheta, firstl2);
                     t_wigner_calc += mpiMgr.Wtime() - t1;
                     ++n_wigner_calc;
                     t1 = mpiMgr.Wtime();
-                    xcomplex<double> &Cmm1_pos = Cmm1(msky + lmax, mbeam, lat);
-                    xcomplex<double> &Cmm1_neg = Cmm1(-msky + lmax, mbeam, lat);
-                    xcomplex<double> &Cmm2_pos = Cmm2(msky + lmax, mbeam, lat);
-                    xcomplex<double> &Cmm2_neg = Cmm2(-msky + lmax, mbeam, lat);
+                    xcomplex<double> &Cmm1_pos = my_Cmm1(msky + lmax, mbeam, itheta);
+                    xcomplex<double> &Cmm1_neg = my_Cmm1(-msky + lmax, mbeam, itheta);
+                    xcomplex<double> &Cmm2_pos = my_Cmm2(msky + lmax, mbeam, itheta);
+                    xcomplex<double> &Cmm2_neg = my_Cmm2(-msky + lmax, mbeam, itheta);
                     const int firstl = std::max(firstl1, firstl2);
                     double dlb = -levels::xpow(firstl, dsignb);
                     for (long ii = firstl; ii <= lmax; ++ii) {
@@ -965,8 +1044,8 @@ void convolver::conviqt_hemiscm_pol(levels::arr3< xcomplex<double> > &tod1,
                         const xcomplex<float> &bG = blmG(ii, mbeam);
                         const xcomplex<float> &bC = blmC(ii, mbeam);
                         const double prod1 = sT.re * bT.re + sG.re * bG.re + sC.re * bC.re;
-                        const double prod3 = sT.im * bT.re + sG.im * bG.re + sC.im * bC.re;
                         const double prod2 = sT.im * bT.im + sG.im * bG.im + sC.im * bC.im;
+                        const double prod3 = sT.im * bT.re + sG.im * bG.re + sC.im * bC.re;
                         const double prod4 = sT.re * bT.im + sG.re * bG.im + sC.re * bC.im;
                         const double tmp_1 = prod1 + prod2;
                         const double tmp_2 = prod3 - prod4;
@@ -996,8 +1075,8 @@ void convolver::conviqt_hemiscm_pol(levels::arr3< xcomplex<double> > &tod1,
                 }
             }
         }
-        t1 = mpiMgr.Wtime();
-        const double lmaxinv = 2 * pi * lmax / (2. * lmax + 1.);
+
+        const double lmaxinv = double(2 * pi * lmax) / double(2 * lmax + 1);
 #pragma omp for schedule(static, 8)
         for (long msky = -lmax; msky <= lmax; ++msky) {
             double arg = -halfpi * msky;
@@ -1008,227 +1087,135 @@ void convolver::conviqt_hemiscm_pol(levels::arr3< xcomplex<double> > &tod1,
             cs0[ii] = cos(arg);
             sn0[ii] = sin(arg);
         }
-        t_sincos_iter += mpiMgr.Wtime() - t1;
-        ++n_sincos_iter;
     } // End of parallel section
 
-    todAnnulus(tod1, Cmm1, cs, sn, cs0, sn0, NThetaIndex);
-    todAnnulus(tod2, Cmm2, cs, sn, cs0, sn0, NThetaIndex);
+    todAnnulus(my_tod1, my_Cmm1, cs, sn, cs0, sn0, my_ntheta);
+    todAnnulus(my_tod2, my_Cmm2, cs, sn, cs0, sn0, my_ntheta);
 
-    t_conviqt_hemiscm_pol += mpiMgr.Wtime() - tstart;
-    
+    alltoall_datacube(need_itheta1_core, itheta_core, my_itheta, my_tod1, tod1,
+                      ithetaoffset1, NThetaIndex1);
+    alltoall_datacube(need_itheta2_core, itheta_core, my_itheta, my_tod2, tod2,
+                      ithetaoffset2, NThetaIndex2);
+
+    t_conviqt_hemiscm_pol_alltoall += mpiMgr.Wtime() - tstart;
+
     if (CMULT_VERBOSITY > 1) {
-        std::cerr << "Entering conviqt_hemiscm_pol" << std::endl;
+        std::cerr << corenum << " : Exiting conviqt_hemiscm_pol_alltoall" << std::endl;
     }
 }
 
 
-void convolver::conviqt_hemiscm_single(levels::arr3<xcomplex<double> > &tod,
-                                       long NThetaIndex,
-                                       levels::arr<double> &rthetas) {
+void convolver::alltoall_datacube(std::vector<char> &need_itheta_core,
+                                  std::vector<int> &itheta_core,
+                                  std::vector<long> &my_itheta,
+                                  levels::arr3< xcomplex<double> > &my_tod,
+                                  levels::arr3< xcomplex<double> > &tod,
+                                  const long ithetaoffset, const long NThetaIndex) {
     if (CMULT_VERBOSITY > 1) {
-        std::cerr << "Entering conviqt_hemiscm_single"
-                  << " nphi = " << nphi
-                  << " npsi = " << npsi
-                  << " NThetaIndex = " << NThetaIndex
-                  << " rthetas.size() = " << rthetas.size()
-                  << " lmax = " << lmax
-                  << std::endl;
+        std::cerr << corenum << " : Entering alltoall_datacube" << std::endl;
     }
     double tstart = mpiMgr.Wtime();
-    ++n_conviqt_hemiscm_single;
-    levels::arr3< xcomplex<double> > Cmm(nphi, npsi, NThetaIndex);
-    Cmm.fill(0.);
+    ++n_alltoall_datacube;
 
-    Alm< xcomplex<float> > &blmT = b->blmT();
-    Alm< xcomplex<float> > &slmT = s->slmT();
-    levels::arr<double> cs(nphi), sn(nphi);
-    levels::arr<double> cs0(nphi), sn0(nphi);
+    // Calculate the latitudes we send and receive
 
-#pragma omp parallel default(shared)
-    {
-        wignergen wgen(lmax, rthetas, conv_acc), wgen_neg(lmax, rthetas, conv_acc);
-        // wigner_estimator estimator(lmax, 100);
-        
-        for(long mbeam = 0; mbeam < npsi; ++mbeam) {
-            const double dsignb = levels::xpow(mbeam, 1);
-#pragma omp for schedule(static, 8)
-            for (long msky = 0; msky <= lmax; ++msky) {
-                const double dsign = levels::xpow(msky, 1);
-                const double dsb = dsign * dsignb;
-                // estimator.prepare_m(mbeam, msky);
-                // if (estimator.canSkip(rthetas[NThetaIndex - 1]))
-                //     continue; // negligible dmm
-                wgen.prepare(mbeam, msky);
-                wgen_neg.prepare(mbeam, -msky);
-                for (long lat = 0; lat < NThetaIndex; ++lat) {
-                    xcomplex<double> &Cmm_pos = Cmm(msky + lmax, mbeam, lat);
-                    xcomplex<double> &Cmm_neg = Cmm(-msky + lmax, mbeam, lat);
-                    int firstl1, firstl2;
-                    const levels::arr<double> &dmm = wgen.calc(lat, firstl1);
-                    const levels::arr<double> &dmmneg = wgen_neg.calc(lat, firstl2);
-                    const int firstl = std::max(firstl1, firstl2);
-                    for (long ii = firstl; ii <= lmax; ++ii) {
-                        // Note that msky in dlm is located to the left of
-                        // mb and they have to be interchanged in the convolution
-                        const double dMatrixElementmskypos = dsb * dmm[ii];
-                        const double dMatrixElementmskyneg = dsb * dmmneg[ii];
-                        const xcomplex<float> &sT = slmT(ii, msky);
-                        const xcomplex<float> &bT = blmT(ii, mbeam);
-                        const double prod1 = sT.re * bT.re;
-                        const double prod3 = sT.im * bT.re;
-                        const double prod2 = sT.im * bT.im;
-                        const double prod4 = sT.re * bT.im;
-                        const double tmp_1 = prod1 + prod2;
-                        const double tmp_2 = prod3 - prod4;
-                        const double xtmp_1 = tmp_1 * dMatrixElementmskypos;
-                        const double xtmp_2 = tmp_2 * dMatrixElementmskypos;
-                        Cmm_pos.re += xtmp_1;
-                        Cmm_pos.im += xtmp_2;
-                        if (msky != 0) {
-                            const double tmp_3 = dsign * (prod1 - prod2);
-                            const double tmp_4 = -dsign * (prod3 + prod4);
-                            const double xtmp_3 = tmp_3 * dMatrixElementmskyneg;
-                            const double xtmp_4 = tmp_4 * dMatrixElementmskyneg;
-                            Cmm_neg.re += xtmp_3;
-                            Cmm_neg.im += xtmp_4;
-                        }
-                    }
-                }
+    std::vector<int> sendcounts_lat(cores, 0);
+    std::vector<int> recvcounts_lat(cores, 0);
+    std::vector<int> itheta_send, itheta_recv;
+
+    for (long core = 0; core < cores; ++core) {
+
+        // How many to send to each core
+
+        for (long pos = 0; pos < my_itheta.size(); ++pos) {
+            long itheta = my_itheta[pos];
+            if (need_itheta_core[core * ntheta + itheta]) {
+                ++sendcounts_lat[core];
+                // local rather than global latitude index
+                itheta_send.push_back(pos);
             }
         }
-        const double lmaxinv = 2 * pi * lmax / (2. * lmax + 1.);
-#pragma omp for schedule(static, 8)
-        for (long msky = -lmax; msky <= lmax; ++msky) {
-            double arg = -halfpi * msky;
-            long ii = lmax + msky;
-            cs[ii] = cos(arg);
-            sn[ii] = sin(arg);
-            arg = ii * lmaxinv;
-            cs0[ii] = cos(arg);
-            sn0[ii] = sin(arg);
-        }
-    } // end parallel region
 
-    todAnnulus(tod, Cmm, cs, sn, cs0, sn0, NThetaIndex);
+        // How many to receive from each core
 
-    t_conviqt_hemiscm_single += mpiMgr.Wtime() - tstart;
-    
-    if (CMULT_VERBOSITY > 1) {
-        std::cerr << "Exiting conviqt_hemiscm_single" << std::endl;
-    }
-}
-
-
-void convolver::conviqt_hemiscm_pol_single(levels::arr3<xcomplex<double> > &tod,
-                                           long NThetaIndex,
-                                           levels::arr<double> &rthetas) {
-    if (CMULT_VERBOSITY > 1) {
-        std::cerr << "Entering conviqt_hemiscm_pol_single" << std::endl;
-    }
-    double tstart = mpiMgr.Wtime();
-    ++n_conviqt_hemiscm_pol_single;
-    levels::arr3<xcomplex<double> > Cmm(nphi, npsi, NThetaIndex);
-    Cmm.fill(0.);
-
-    Alm< xcomplex<float> > &blmT = b->blmT();
-    Alm< xcomplex<float> > &blmG = b->blmG();
-    Alm< xcomplex<float> > &blmC = b->blmC();
-    Alm< xcomplex<float> > &slmT = s->slmT();
-    Alm< xcomplex<float> > &slmG = s->slmG();
-    Alm< xcomplex<float> > &slmC = s->slmC();
-    levels::arr<double> cs(nphi), sn(nphi);
-    levels::arr<double> cs0(nphi), sn0(nphi);
-
-#pragma omp parallel default(shared)
-    {
-        double t1 = mpiMgr.Wtime();
-        wignergen wgen(lmax, rthetas, conv_acc), wgen_neg(lmax, rthetas, conv_acc);
-        t_wigner_init += mpiMgr.Wtime() - t1;
-        ++n_wigner_init;
-        // wigner_estimator estimator(lmax, 100);
-        for (long mbeam = 0; mbeam < npsi; ++mbeam) {
-            const double dsignb = levels::xpow(mbeam, 1);
-#pragma omp for schedule(static, 8)
-            for (long msky = 0; msky <= lmax; ++msky) {
-                const double dsign = levels::xpow(msky, 1);
-                const double dsb = dsign * dsignb;
-                //estimator.prepare_m(mbeam, msky);
-                //if (estimator.canSkip(rthetas[NThetaIndex - 1]))
-                //    continue; // negligible dmm
-                t1 = mpiMgr.Wtime();
-                wgen.prepare(mbeam, msky);
-                wgen_neg.prepare(mbeam, -msky);
-                t_wigner_prepare += mpiMgr.Wtime() - t1;
-                ++n_wigner_prepare;
-                for (long lat = 0; lat < NThetaIndex; ++lat) {
-                    int firstl1, firstl2;
-                    t1 = mpiMgr.Wtime();
-                    const levels::arr<double> &dmm = wgen.calc(lat, firstl1);
-                    const levels::arr<double> &dmmneg = wgen_neg.calc(lat, firstl2);
-                    t_wigner_calc += mpiMgr.Wtime() - t1;
-                    ++n_wigner_calc;
-                    t1 = mpiMgr.Wtime();
-                    xcomplex<double> &Cmm_pos = Cmm(msky + lmax, mbeam, lat);
-                    xcomplex<double> &Cmm_neg = Cmm(-msky + lmax, mbeam, lat);
-                    const int firstl = std::max(firstl1, firstl2);
-                    for (long ii = firstl; ii <= lmax; ++ii) {
-                        // Note that msky in dlm is located to the left
-                        // of mb and they have to be interchanged in the convolution
-                        const double dMatrixElementmskypos = dsb * dmm[ii];
-                        const xcomplex<float> &sT = slmT(ii, msky);
-                        const xcomplex<float> &sG = slmG(ii, msky);
-                        const xcomplex<float> &sC = slmC(ii, msky);
-                        const xcomplex<float> &bT = blmT(ii, mbeam);
-                        const xcomplex<float> &bG = blmG(ii, mbeam);
-                        const xcomplex<float> &bC = blmC(ii, mbeam);
-                        const double prod1 = sT.re * bT.re + sG.re * bG.re + sC.re * bC.re;
-                        const double prod3 = sT.im * bT.re + sG.im * bG.re + sC.im * bC.re;
-                        const double prod2 = sT.im * bT.im + sG.im * bG.im + sC.im * bC.im;
-                        const double prod4 = sT.re * bT.im + sG.re * bG.im + sC.re * bC.im;
-                        const double tmp_1 = prod1 + prod2;
-                        const double tmp_2 = prod3 - prod4;
-                        const double xtmp_1 = tmp_1 * dMatrixElementmskypos;
-                        const double xtmp_2 = tmp_2 * dMatrixElementmskypos;
-                        Cmm_pos.re += xtmp_1;
-                        Cmm_pos.im += xtmp_2;
-                        if (msky != 0) {
-                            const double tmp_3 = prod1 - prod2;
-                            const double tmp_4 = -prod3 - prod4;
-                            const double dMatrixElementmskyneg = dsb * dmmneg[ii];
-                            const double xtmp_3 = dsign * tmp_3 * dMatrixElementmskyneg;
-                            const double xtmp_4 = dsign * tmp_4 * dMatrixElementmskyneg;
-                            Cmm_neg.re += xtmp_3;
-                            Cmm_neg.im += xtmp_4;
-                        }
-                    }
-                    t_lat_iter += mpiMgr.Wtime() - t1;
-                    ++n_lat_iter;
-                }
+        for (long pos = 0; pos < NThetaIndex; ++pos) {
+            long itheta = pos + ithetaoffset;
+            if (itheta_core[itheta] == core) {
+                ++recvcounts_lat[core];
+                // local rather than global latitude index
+                itheta_recv.push_back(pos);
             }
-        } // end of parallel for
-        t1 = mpiMgr.Wtime();
-        const double lmaxinv = 2 * pi * lmax / (2. * lmax + 1.);
-#pragma omp for schedule(static, 8)
-        for (long msky = -lmax; msky <= lmax; ++msky) {
-            double arg = -halfpi * msky;
-            long ii = lmax + msky;
-            cs[ii] = cos(arg);
-            sn[ii] = sin(arg);
-            arg = ii * lmaxinv;
-            cs0[ii] = cos(arg);
-            sn0[ii] = sin(arg);
         }
-        t_sincos_iter += mpiMgr.Wtime() - t1;
-        ++n_sincos_iter;
-    } // end of parallel region
+    }
 
-    todAnnulus(tod, Cmm, cs, sn, cs0, sn0, NThetaIndex);
+    long nsend = itheta_send.size();
+    long nrecv = itheta_recv.size();
 
-    t_conviqt_hemiscm_pol_single += mpiMgr.Wtime() - tstart;
-    
+    // Number of doubles per latitude
+
+    long bufsize = nphi * npsi * 2;
+    std::vector<double> sendbuf, recvbuf;
+    try {
+        sendbuf.resize(nsend * bufsize);
+        recvbuf.resize(nrecv * bufsize);
+    } catch (std::bad_alloc &e) {
+        std::cerr << "alltoall_datacube :  Out of memory allocating "
+                  << (nsend + nrecv) * bufsize * 8. / 1024 / 1024
+                  << "MB for receiving and sending" << std::endl;
+        throw;
+    }
+
+    std::vector<int> sendcounts(cores), sdispls(cores);
+    std::vector<int> recvcounts(cores), rdispls(cores);
+
+    // Pack send buffer.  Unfortunately the TOD is stored row-major
+    // so we are accessing my_tod at a stride of my_ntheta
+
+    double *p = sendbuf.data();
+    for (long isend = 0; isend < nsend; ++isend) {
+        long pos = itheta_send[isend];
+        for (long iphi = 0; iphi < nphi; ++iphi) {
+            for (long ipsi = 0; ipsi < npsi; ++ipsi) {
+                *(p++) = my_tod(iphi, ipsi, pos).re;
+                *(p++) = my_tod(iphi, ipsi, pos).im;
+            }
+        }
+    }
+
+    for (int core = 0; core < cores; ++core) {
+        sendcounts[core] = sendcounts_lat[core] * bufsize;
+        recvcounts[core] = recvcounts_lat[core] * bufsize;
+        if (core == 0) {
+            sdispls[core] = 0;
+            rdispls[core] = 0;
+        } else {
+            sdispls[core] = sdispls[core - 1] + sendcounts[core - 1];
+            rdispls[core] = rdispls[core - 1] + recvcounts[core - 1];
+        }
+    }
+
+    int err = MPI_Alltoallv(sendbuf.data(), sendcounts.data(), sdispls.data(), MPI_DOUBLE,
+                            recvbuf.data(), recvcounts.data(), rdispls.data(), MPI_DOUBLE,
+                            mpiMgr.comm());
+    if (err) throw std::runtime_error("Failed to alltoall datacube");
+
+    // Unpack recv buffer
+
+    p = recvbuf.data();
+    for (long irecv = 0; irecv < nrecv; ++irecv) {
+        long pos = itheta_recv[irecv];
+        for (long iphi = 0; iphi < nphi; ++iphi) {
+            for (long ipsi = 0; ipsi < npsi; ++ipsi) {
+                tod(iphi, ipsi, pos).re = *(p++);
+                tod(iphi, ipsi, pos).im = *(p++);
+            }
+        }
+    }
+
+    t_alltoall_datacube += mpiMgr.Wtime() - tstart;
+
     if (CMULT_VERBOSITY > 1) {
-        std::cerr << "Exiting conviqt_hemiscm_pol_single" << std::endl;
+        std::cerr << corenum << " : Exiting alltoall_datacube" << std::endl;
     }
 }
 
@@ -1241,7 +1228,7 @@ void convolver::todAnnulus(levels::arr3<xcomplex<double> > &tod,
                            levels::arr<double> &sn0,
                            long NThetaIndex) {
     if (CMULT_VERBOSITY > 1) {
-        std::cerr << "Entering todAnnulus" << std::endl;
+        std::cerr << corenum << " : Entering todAnnulus" << std::endl;
     }
     double tstart = mpiMgr.Wtime();
     ++n_todAnnulus;
@@ -1250,12 +1237,12 @@ void convolver::todAnnulus(levels::arr3<xcomplex<double> > &tod,
     {
         levels::arr< xcomplex<double> > Cmsky(nphi, 0);
         cfft p1(nphi);
+
 #pragma omp for schedule(static, 8)
         for (long msky = -lmax; msky <= lmax; ++msky) {
             const long ii = msky + lmax;
             for (long mbeam = 0; mbeam < npsi; ++mbeam) {
                 for (long lat = 0; lat < NThetaIndex; ++lat) {
-                    //double dPhi = -halfpi;
                     const double tmpR = Cmm(ii, mbeam, lat).re;
                     const double tmpI = Cmm(ii, mbeam, lat).im;
                     Cmm(ii, mbeam, lat).re = cs[ii] * tmpR + sn[ii] * tmpI;
@@ -1263,6 +1250,7 @@ void convolver::todAnnulus(levels::arr3<xcomplex<double> > &tod,
                 }
             }
         } // end of parallel for
+
 #pragma omp for schedule(static, 1)
         for (long mbeam = 0; mbeam < npsi; ++mbeam) {
             for (long lat = 0; lat < NThetaIndex; ++lat) {
@@ -1276,6 +1264,7 @@ void convolver::todAnnulus(levels::arr3<xcomplex<double> > &tod,
                 }
             }
         } // end of parallel for
+
 #pragma omp for schedule(static, 8)
         for (long msky = -lmax; msky <= lmax; ++msky) {
             const long ii = msky + lmax;
@@ -1294,15 +1283,15 @@ void convolver::todAnnulus(levels::arr3<xcomplex<double> > &tod,
                 }
             }
         } // end of parallel for
+
     } // end of parallel region
-    // Note that now, -lmax <= msky <= lmax corresponds to the angle
-    // 0 <= phi <= 2.*pi/2./(2.*lmax+1.) and -pi <= phi <= -2.pi/(2.*lmax+1.)
+
     // Finished with convolution and FFT over msky.
 
     t_todAnnulus += mpiMgr.Wtime() - tstart;
-    
+
     if (CMULT_VERBOSITY > 1) {
-        std::cerr << "Exiting todAnnulus" << std::endl;
+        std::cerr << corenum << " : Exiting todAnnulus" << std::endl;
     }
 }
 
@@ -1313,7 +1302,7 @@ void convolver::interpolTOD_arrTestcm(levels::arr<double> &outpntarr1,
                                          levels::arr<double> &TODValue2,
                                          const long ntod1, const long ntod2) {
     if (CMULT_VERBOSITY > 1) {
-        std::cerr << "Entered interpolTOD_arrTestcm" << std::endl;
+        std::cerr << corenum << " : Entered interpolTOD_arrTestcm" << std::endl;
     }
     double tstart = mpiMgr.Wtime();
     ++n_interpolTOD_arrTestcm;
@@ -1334,69 +1323,35 @@ void convolver::interpolTOD_arrTestcm(levels::arr<double> &outpntarr1,
     }
 
     if (CMULT_VERBOSITY > 1) {
-        std::cerr << "DONE with NThetaIndex1 = " << NThetaIndex1
-                  << "  and NThetaIndex2 = " << NThetaIndex2 << "  corenum = "
-                  << corenum << "  ntod1 = " << ntod1 << "  ntod2 = " << ntod2 << std::endl;
-    }
-
-    bool fNThetaIndex = true;
-    if (ntod1 != 0 && ntod2 != 0) {
-        if (itheta0_1[ntod1 - 1] != itheta0_2[ntod2 - 1]) {
-            fNThetaIndex = false;
-        }
-        if (NThetaIndex1 != NThetaIndex2) {
-            fNThetaIndex = false;
-        }
-    }
-    if (ntod1 == 0 || ntod2 == 0) {
-        fNThetaIndex = false;
-    }
-
-    levels::arr<double> rthetas1, rthetas2;
-    if (NThetaIndex1 != 0) {
-        rthetas1.alloc(NThetaIndex1);
-        for (int thetaIndex = 0; thetaIndex < NThetaIndex1; ++thetaIndex) {
-            rthetas1[thetaIndex] = itheta_to_beta1(itheta0_1[ntod1 - 1] + thetaIndex);
-        }
-    }
-    if (NThetaIndex2 != 0) {
-        rthetas2.alloc(NThetaIndex2);
-        for (int thetaIndex = 0; thetaIndex < NThetaIndex2; ++thetaIndex) {
-            rthetas2[thetaIndex] = itheta_to_beta2(itheta0_2[ntod2 - 1] + thetaIndex);
+        for (int core = 0; core < cores; ++core) {
+            if (core == corenum) {
+                std::cerr << corenum << " :"
+                          << " NThetaIndex1 = " << NThetaIndex1
+                          << " ntod1 = " << ntod1
+                          << " NThetaIndex2 = " << NThetaIndex2
+                          << " ntod2 = " << ntod2
+                          << std::endl;
+            }
+            mpiMgr.barrier();
         }
     }
 
-    if (fNThetaIndex) {
-        conviqt_hemiscm(TODAsym1, TODAsym2, NThetaIndex1, rthetas1);
-    } else {
-        if (NThetaIndex1 != 0) {
-            conviqt_hemiscm_single(TODAsym1, NThetaIndex1, rthetas1);
-        }
-        if (NThetaIndex2 != 0) {
-            conviqt_hemiscm_single(TODAsym2, NThetaIndex2, rthetas2);
-        }
+    conviqt_hemiscm_alltoall(TODAsym1, TODAsym2,
+                             NThetaIndex1, NThetaIndex2,
+                             itheta0_1[ntod1 - 1], itheta0_2[ntod2 - 1]);
+
+    for (int thetaIndex = 0; thetaIndex < NThetaIndex1; ++thetaIndex) {
+        conviqt_tod_loop(lowerIndex1, upperIndex1, outpntarr1, TODAsym1,
+                         thetaIndex, itheta0_1, ntod1, TODValue1, thetaIndex);
+    }
+
+    for (int thetaIndex = 0; thetaIndex < NThetaIndex2; ++thetaIndex) {
+        conviqt_tod_loop(lowerIndex2, upperIndex2, outpntarr2, TODAsym2,
+                         thetaIndex, itheta0_2, ntod2, TODValue2, thetaIndex);
     }
 
     if (CMULT_VERBOSITY > 1) {
-        std::cerr << "After conviqt if" << std::endl;
-    }
-
-    if (ntod1 > 0) {
-        for (int thetaIndex = 0; thetaIndex < NThetaIndex1; ++thetaIndex) {
-            conviqt_tod_loop(lowerIndex1, upperIndex1, outpntarr1, TODAsym1,
-                             thetaIndex, itheta0_1, ntod1, TODValue1, thetaIndex);
-        }
-    }
-
-    if (ntod2 > 0) {
-        for (int thetaIndex = 0; thetaIndex < NThetaIndex2; ++thetaIndex) {
-            conviqt_tod_loop(lowerIndex2, upperIndex2, outpntarr2, TODAsym2,
-                             thetaIndex, itheta0_2, ntod2, TODValue2, thetaIndex);
-        }
-    }
-
-    if (CMULT_VERBOSITY > 1) {
-        std::cerr << "Leaving interpolTOD_arrTestcm" << std::endl;
+        std::cerr << corenum << " : Exiting interpolTOD_arrTestcm" << std::endl;
     }
 
     t_interpolTOD_arrTestcm += mpiMgr.Wtime() - tstart;
@@ -1412,7 +1367,7 @@ void convolver::interpolTOD_arrTestcm_pol(levels::arr<double> &outpntarr1,
     ++n_interpolTOD_arrTestcm_pol;
 
     if (CMULT_VERBOSITY > 1) {
-        std::cerr << "Entered interpolTOD_arrTestcm_pol" << std::endl;
+        std::cerr << corenum << " : Entering interpolTOD_arrTestcm_pol" << std::endl;
     }
 
     levels::arr<long> itheta0_1, itheta0_2;
@@ -1425,94 +1380,44 @@ void convolver::interpolTOD_arrTestcm_pol(levels::arr<double> &outpntarr1,
         itheta0SetUp(outpntarr1, ntod1, NThetaIndex1, itheta0_1,
                      lowerIndex1, upperIndex1, TODAsym1);
     }
+
     if (ntod2 != 0) {
         itheta0SetUp(outpntarr2, ntod2, NThetaIndex2, itheta0_2,
                      lowerIndex2, upperIndex2, TODAsym2);
     }
 
-    // DEBUG begin
-    for (int core = 0; core < cores; ++core) {
-        if (core == corenum) {
-            std::cerr << corenum << " :"
-                      << " NThetaIndex1 = " << NThetaIndex1
-                      << " ntod1 = " << ntod1
-                      << " NThetaIndex2 = " << NThetaIndex2
-                      << " ntod2 = " << ntod2
-                      << std::endl;
-        }
-        mpiMgr.barrier();
-    }
-    // DEBUG end
-
     if (CMULT_VERBOSITY > 1) {
-        std::cerr << "DONE with NThetaIndex1 = " << NThetaIndex1
-                  << "  and NThetaIndex2 = " << NThetaIndex2
-                  << "  corenum = " << corenum << "  ntod1 = " << ntod1
-                  << "  ntod2 = " << ntod2 << std::endl;
-    }
-
-    bool fNThetaIndex = true;
-    if (ntod1 != 0 && ntod2 != 0) {
-        if (itheta0_1[ntod1 - 1] != itheta0_2[ntod2 - 1]) {
-            fNThetaIndex = false;
-        }
-        if (NThetaIndex1 != NThetaIndex2) {
-            fNThetaIndex = false;
+        for (int core = 0; core < cores; ++core) {
+            if (core == corenum) {
+                std::cerr << corenum << " :"
+                          << " NThetaIndex1 = " << NThetaIndex1
+                          << " ntod1 = " << ntod1
+                          << " NThetaIndex2 = " << NThetaIndex2
+                          << " ntod2 = " << ntod2
+                          << std::endl;
+            }
+            mpiMgr.barrier();
         }
     }
 
-    if (ntod1 == 0 || ntod2 == 0) {
-        fNThetaIndex = false;
+    conviqt_hemiscm_pol_alltoall(TODAsym1, TODAsym2,
+                                 NThetaIndex1, NThetaIndex2,
+                                 itheta0_1[ntod1 - 1], itheta0_2[ntod2 - 1]);
+
+    for (int thetaIndex = 0; thetaIndex < NThetaIndex1; ++thetaIndex) {
+        conviqt_tod_loop_pol(lowerIndex1, upperIndex1, outpntarr1, TODAsym1,
+                             thetaIndex, itheta0_1, ntod1, TODValue1,
+                             thetaIndex);
     }
 
-    levels::arr<double> rthetas1, rthetas2;
-    if (NThetaIndex1 != 0) {
-        rthetas1.alloc(NThetaIndex1);
-        for (int thetaIndex = 0; thetaIndex < NThetaIndex1; ++thetaIndex) {
-            rthetas1[thetaIndex] = itheta_to_beta1(itheta0_1[ntod1 - 1] + thetaIndex);
-        }
-    }
-
-    if (NThetaIndex2 != 0) {
-        rthetas2.alloc(NThetaIndex2);
-        for (int thetaIndex = 0; thetaIndex < NThetaIndex2; ++thetaIndex) {
-            rthetas2[thetaIndex] = itheta_to_beta2(itheta0_2[ntod2 - 1] + thetaIndex);
-        }
-    }
-
-    if (fNThetaIndex) {
-        conviqt_hemiscm_pol(TODAsym1, TODAsym2, NThetaIndex1, rthetas1);
-    } else {
-        if (NThetaIndex1 != 0) {
-            conviqt_hemiscm_pol_single(TODAsym1, NThetaIndex1, rthetas1);
-        }
-        if (NThetaIndex2 != 0) {
-            conviqt_hemiscm_pol_single(TODAsym2, NThetaIndex2, rthetas2);
-        }
+    for (int thetaIndex = 0; thetaIndex < NThetaIndex2; ++thetaIndex) {
+        conviqt_tod_loop_pol(lowerIndex2, upperIndex2, outpntarr2, TODAsym2,
+                             thetaIndex, itheta0_2, ntod2, TODValue2,
+                             thetaIndex);
     }
 
     if (CMULT_VERBOSITY > 1) {
-        std::cerr << "After conviqt if" << std::endl;
-    }
-
-    if (ntod1 > 0) {
-        for (int thetaIndex = 0; thetaIndex < NThetaIndex1; ++thetaIndex) {
-            conviqt_tod_loop_pol(lowerIndex1, upperIndex1, outpntarr1, TODAsym1,
-                                 thetaIndex, itheta0_1, ntod1, TODValue1,
-                                 thetaIndex);
-        }
-    }
-
-    if (ntod2 > 0) {
-        for (int thetaIndex = 0; thetaIndex < NThetaIndex2; ++thetaIndex) {
-            conviqt_tod_loop_pol(lowerIndex2, upperIndex2, outpntarr2, TODAsym2,
-                                 thetaIndex, itheta0_2, ntod2, TODValue2,
-                                 thetaIndex);
-        }
-    }
-
-    if (CMULT_VERBOSITY > 1) {
-        std::cerr << "Leaving interpolTOD_arrTestcm_pol" << std::endl;
+        std::cerr << corenum << " : Exiting interpolTOD_arrTestcm_pol" << std::endl;
     }
 
     t_interpolTOD_arrTestcm_pol += mpiMgr.Wtime() - tstart;
@@ -1520,13 +1425,17 @@ void convolver::interpolTOD_arrTestcm_pol(levels::arr<double> &outpntarr1,
 
 
 void convolver::conviqt_tod_loop(levels::arr<long> &lowerIndex,
-                                    levels::arr<long> &upperIndex,
-                                    levels::arr<double> &outpntarr,
-                                    levels::arr3<xcomplex<double> > &TODAsym,
-                                    const long thetaIndex,
-                                    levels::arr<long> &itheta0,
-                                    const long ntod,
-                                    levels::arr<double> &TODValue, const long lat) {
+                                 levels::arr<long> &upperIndex,
+                                 levels::arr<double> &outpntarr,
+                                 levels::arr3<xcomplex<double> > &TODAsym,
+                                 const long thetaIndex,
+                                 levels::arr<long> &itheta0,
+                                 const long ntod,
+                                 levels::arr<double> &TODValue, const long lat) {
+    if (CMULT_VERBOSITY > 1) {
+        std::cerr << corenum << " : Entering conviqt_tod_loop" << std::endl;
+    }
+
     double tstart = mpiMgr.Wtime();
     ++n_conviqt_tod_loop;
     levels::arr2< xcomplex<double> > conviqtarr;
@@ -1602,6 +1511,9 @@ void convolver::conviqt_tod_loop(levels::arr<long> &lowerIndex,
     } // end parallel region
 
     t_conviqt_tod_loop += mpiMgr.Wtime() - tstart;
+    if (CMULT_VERBOSITY > 1) {
+        std::cerr << corenum << " : Exiting conviqt_tod_loop" << std::endl;
+    }
 }
 
 
@@ -1614,6 +1526,9 @@ void convolver::conviqt_tod_loop_pol(levels::arr<long> &lowerIndex,
                                      long ntod,
                                      levels::arr<double> &TODValue,
                                      long lat) {
+    if (CMULT_VERBOSITY > 1) {
+        std::cerr << corenum << " : Entering conviqt_tod_loop_pol" << std::endl;
+    }
     double tstart = mpiMgr.Wtime();
     ++n_conviqt_tod_loop_pol;
     levels::arr2< xcomplex<double> > conviqtarr;
@@ -1689,6 +1604,9 @@ void convolver::conviqt_tod_loop_pol(levels::arr<long> &lowerIndex,
     }  // end parallel region
 
     t_conviqt_tod_loop_pol += mpiMgr.Wtime() - tstart;
+    if (CMULT_VERBOSITY > 1) {
+        std::cerr << corenum << " : Exiting conviqt_tod_loop_pol" << std::endl;
+    }
 }
 
 
@@ -1731,9 +1649,7 @@ int convolver::convolve(pointing &pntarr, bool calibrate) {
     // It is needed to collect the convolved data.
     long my_offset = 0;
     int err = MPI_Scan(&totsize, &my_offset, 1, MPI_LONG, MPI_SUM, mpiMgr.comm());
-    if (err != 0) {
-        throw std::runtime_error("Error scannign total TOD size");
-    }
+    if (err) throw std::runtime_error("Error scanning total TOD size");
     my_offset -= totsize;
     for (long ii = 0; ii < totsize; ++ii) {
         pntarr[5 * ii + 4] = my_offset + ii;
@@ -1927,7 +1843,7 @@ int convolver::convolve(pointing &pntarr, bool calibrate) {
                 }
             }
         }
-        if (CMULT_VERBOSITY > 1) {                
+        if (CMULT_VERBOSITY > 1) {
             std::cerr << "  corenum = " << corenum << "   maxtoddiff = "
                       << maxtoddiff << "   calibration = " << calibration << std::endl;
         }
@@ -1956,21 +1872,18 @@ void convolver::report_timing() {
                 t_interpolTOD_arrTestcm_pol, n_interpolTOD_arrTestcm_pol);
     timing_line(std::string("            itheta0SetUp"), t_itheta0SetUp, n_itheta0SetUp);
     timing_line(std::string("                ithetacalc"), t_ithetacalc, n_ithetacalc);
-    timing_line(std::string("            conviqt_hemiscm_single"),
-                t_conviqt_hemiscm_single, n_conviqt_hemiscm_single);
-    timing_line(std::string("            conviqt_hemiscm"),
-                t_conviqt_hemiscm, n_conviqt_hemiscm);
-    timing_line(std::string("            conviqt_hemiscm_pol"),
-                t_conviqt_hemiscm_pol, n_conviqt_hemiscm_pol);
-    timing_line(std::string("            conviqt_hemiscm_pol_single"),
-                t_conviqt_hemiscm_pol_single, n_conviqt_hemiscm_pol_single);
+    timing_line(std::string("            conviqt_hemiscm_alltoall"),
+                t_conviqt_hemiscm_alltoall, n_conviqt_hemiscm_alltoall);
+    timing_line(std::string("            conviqt_hemiscm_pol_alltoall"),
+                t_conviqt_hemiscm_pol_alltoall, n_conviqt_hemiscm_pol_alltoall);
     timing_line(std::string("                wigner_init"), t_wigner_init, n_wigner_init);
     timing_line(std::string("                wigner_prepare"),
                 t_wigner_prepare, n_wigner_prepare);
     timing_line(std::string("                wigner_calc"), t_wigner_calc, n_wigner_calc);
     timing_line(std::string("                lat_iter"), t_lat_iter, n_lat_iter);
-    timing_line(std::string("                sincos_iter"), t_sincos_iter, n_sincos_iter);
     timing_line(std::string("                todAnnulus"),  t_todAnnulus, n_todAnnulus);
+    timing_line(std::string("                    alltoall_datacube"),
+                t_alltoall_datacube, n_alltoall_datacube);
     timing_line(std::string("            conviqt_tod_loop"),
                 t_conviqt_tod_loop, n_conviqt_tod_loop);
     timing_line(std::string("            conviqt_tod_loop_pol"),
