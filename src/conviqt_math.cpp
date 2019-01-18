@@ -768,10 +768,10 @@ void convolver::conviqt_hemiscm_alltoall(levels::arr3<xcomplex<double> > &tod1,
                     ++n_wigner_prepare;
                 }
                 for (long lat = 0; lat < my_ntheta; ++lat) {
-                    xcomplex<double> Cmm1_pos = my_Cmm1(msky + lmax, mbeam, lat);
-                    xcomplex<double> Cmm1_neg = my_Cmm1(-msky + lmax, mbeam, lat);
-                    xcomplex<double> Cmm2_pos = my_Cmm2(msky + lmax, mbeam, lat);
-                    xcomplex<double> Cmm2_neg = my_Cmm2(-msky + lmax, mbeam, lat);
+                    xcomplex<double> &Cmm1_pos = my_Cmm1(msky + lmax, mbeam, lat);
+                    xcomplex<double> &Cmm1_neg = my_Cmm1(-msky + lmax, mbeam, lat);
+                    xcomplex<double> &Cmm2_pos = my_Cmm2(msky + lmax, mbeam, lat);
+                    xcomplex<double> &Cmm2_neg = my_Cmm2(-msky + lmax, mbeam, lat);
                     int firstl1, firstl2;
                     const levels::arr<double> &dmm = wgen.calc(lat, firstl1);
                     const levels::arr<double> &dmmneg = wgen_neg.calc(lat, firstl2);
