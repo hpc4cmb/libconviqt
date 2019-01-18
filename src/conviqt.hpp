@@ -143,20 +143,22 @@ private :
     std::vector<double> base_wgt;
 
     double t_convolve, t_todgen, t_arrFillingcm, t_interpolTOD_arrTestcm,
-        t_itheta0SetUp, t_ithetacalc, t_conviqt_tod_loop, t_weight_ncm,
+        t_itheta0SetUp, t_ithetacalc, t_conviqt_tod_loop,
         t_conviqt_hemiscm_alltoall,
         t_interpolTOD_arrTestcm_pol, t_conviqt_tod_loop_pol, t_todAnnulus,
-        t_wigner_init, t_wigner_prepare, t_wigner_calc,
-        t_lat_iter, t_alltoall, t_todRedistribution5cm,
-        t_distribute_colatitudes, t_conviqt_hemiscm_pol_alltoall, t_alltoall_datacube;
+        t_wigner_init, t_wigner_prepare,
+        t_alltoall, t_todRedistribution5cm,
+        t_distribute_colatitudes, t_conviqt_hemiscm_pol_alltoall,
+        t_alltoall_datacube, t_sort;
 
     long n_convolve, n_todgen, n_arrFillingcm, n_interpolTOD_arrTestcm,
-        n_itheta0SetUp, n_ithetacalc, n_conviqt_tod_loop, n_weight_ncm,
+        n_itheta0SetUp, n_ithetacalc, n_conviqt_tod_loop,
         n_conviqt_hemiscm_alltoall,
         n_interpolTOD_arrTestcm_pol, n_conviqt_tod_loop_pol, n_todAnnulus,
-        n_wigner_init, n_wigner_prepare, n_wigner_calc,
-        n_lat_iter, n_alltoall, n_todRedistribution5cm,
-        n_distribute_colatitudes, n_conviqt_hemiscm_pol_alltoall, n_alltoall_datacube;
+        n_wigner_init, n_wigner_prepare,
+        n_alltoall, n_todRedistribution5cm,
+        n_distribute_colatitudes, n_conviqt_hemiscm_pol_alltoall,
+        n_alltoall_datacube, n_sort;
 
     void weight_ncm(double x, levels::arr<double> &wgt);
     void weight_ncm(double x, std::vector<double> &wgt);

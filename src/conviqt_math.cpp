@@ -4,6 +4,8 @@
 
 #include <cstring>
 
+#include "omp.h"
+
 /*
   int convolve()
       void thetaDeltaThetacm()
@@ -19,21 +21,30 @@
 
       void todgen()
           void arrFillingcm()
+          EITHER
           void interpolTOD_arrTestcm()
               void itheta0SetUp()
                   void ithetacalc()
               void conviqt_hemiscm_alltoall()
-                  void todAnnulus()
-              void conviqt_tod_loop()
-                  void weight_ncm()
-          void interpolTOD_arrTestcm_pol()
-              void itheta0SetUp()
-                  void ithetacalc()
-              void conviqt_hemiscm_pol_alltoall()
+                  get_latitude_tables()
                   wignergen()
                   wignergen.prepare()
                   wignergen.calc()
                   void todAnnulus()
+                  alltoall_datacube()
+              void conviqt_tod_loop()
+                  void weight_ncm()
+          OR
+          void interpolTOD_arrTestcm_pol()
+              void itheta0SetUp()
+                  void ithetacalc()
+              void conviqt_hemiscm_pol_alltoall()
+                  get_latitude_tables()
+                  wignergen()
+                  wignergen.prepare()
+                  wignergen.calc()
+                  void todAnnulus()
+                  alltoall_datacube()
               void conviqt_tod_loop_pol()
                   void weight_ncm()
 
@@ -119,6 +130,8 @@ convolver::convolver(sky *s, beam *b, detector *d, bool pol,
     n_convolve = 0;
     t_alltoall = 0;
     n_alltoall = 0;
+    t_sort = 0;
+    n_sort = 0;
     t_todRedistribution5cm = 0;
     n_todRedistribution5cm = 0;
     t_distribute_colatitudes = 0;
@@ -152,18 +165,9 @@ convolver::convolver(sky *s, beam *b, detector *d, bool pol,
 
     t_wigner_init = 0;
     t_wigner_prepare = 0;
-    t_wigner_calc = 0;
 
     n_wigner_init = 0;
     n_wigner_prepare = 0;
-    n_wigner_calc = 0;
-
-    t_lat_iter = 0;
-
-    n_lat_iter = 0;
-
-    t_weight_ncm = 0;
-    n_weight_ncm = 0;
 }
 
 
@@ -190,9 +194,7 @@ int convolver::set_detector(detector *d) {
 
 
 void convolver::weight_ncm(const double x, levels::arr<double> &wgt) {
-    double tstart = mpiMgr.Wtime();
-    ++n_weight_ncm;
-
+    // This method is called from multiple threads at once
     if (base_wgt.size() == 0) {
         // Initialize base_wgt only when needed
         base_wgt.resize(npoints, 1);
@@ -225,15 +227,11 @@ void convolver::weight_ncm(const double x, levels::arr<double> &wgt) {
     }
 
     memcpy(&(wgt[0]), &(temp_wgt[0]), sizeof(double) * npoints);
-    t_weight_ncm += mpiMgr.Wtime() - tstart;
 }
 
 
 void convolver::weight_ncm(const double x, std::vector<double> &wgt) {
     // This method is called from multiple threads at once
-    double tstart = mpiMgr.Wtime();
-    ++n_weight_ncm;
-
     if (base_wgt.size() == 0) {
         // Initialize base_wgt only when needed
         base_wgt.resize(npoints, 1);
@@ -263,7 +261,6 @@ void convolver::weight_ncm(const double x, std::vector<double> &wgt) {
     }
 
     memcpy(&(wgt[0]), &(temp_wgt[0]), sizeof(double) * npoints);
-    t_weight_ncm += mpiMgr.Wtime() - tstart;
 }
 
 
@@ -367,13 +364,6 @@ void convolver::distribute_colatitudes(levels::arr<double> &pntarr,
         }
         double theta = ibin * wbin;
         corethetaarr[corenum] = theta;
-        if (mpiMgr.master()) std::cerr
-                                 << " corenum = " << corenum
-                                 << " ibin = " << ibin  << " / " << nbin
-                                 << " theta = " << theta * 180 / pi
-                                 << " bin_hit = " << bin_hit
-                                 << " nhitleft = " << nhitleft << " / " << totsize_tot
-                                 << std::endl; // DEBUG
     }
 
     t_distribute_colatitudes += mpiMgr.Wtime() - tstart;
@@ -754,7 +744,12 @@ void convolver::conviqt_hemiscm_alltoall(levels::arr3<xcomplex<double> > &tod1,
 
 #pragma omp parallel default(shared)
     {
+        double t1 = mpiMgr.Wtime();
         wignergen wgen(lmax, rthetas, conv_acc), wgen_neg(lmax, rthetas, conv_acc);
+        if (omp_get_thread_num() == 0) {
+            t_wigner_init += mpiMgr.Wtime() - t1;
+            ++n_wigner_init;
+        }
         //wigner_estimator estimator(lmax,100);
         for(long mbeam = 0; mbeam < npsi; ++mbeam) {
             double dsignb = levels::xpow(mbeam, 1);
@@ -763,10 +758,15 @@ void convolver::conviqt_hemiscm_alltoall(levels::arr3<xcomplex<double> > &tod1,
                 const double dsign = levels::xpow(msky, 1);
                 const double dsb = dsign * dsignb;
                 // estimator.prepare_m(mbeam, msky);
-                // if (estimator.canSkip(rthetas[NThetaIndex1-1]))
+                // if (estimator.canSkip(rthetas[my_ntheta - 1]))
                 //     continue; // negligible dmm
+                t1 = mpiMgr.Wtime();
                 wgen.prepare(mbeam, msky);
                 wgen_neg.prepare(mbeam, -msky);
+                if (omp_get_thread_num() == 0) {
+                    t_wigner_prepare += mpiMgr.Wtime() - t1;
+                    ++n_wigner_prepare;
+                }
                 for (long lat = 0; lat < my_ntheta; ++lat) {
                     xcomplex<double> Cmm1_pos = my_Cmm1(msky + lmax, mbeam, lat);
                     xcomplex<double> Cmm1_neg = my_Cmm1(-msky + lmax, mbeam, lat);
@@ -998,8 +998,10 @@ void convolver::conviqt_hemiscm_pol_alltoall(levels::arr3< xcomplex<double> > &t
     {
         double t1 = mpiMgr.Wtime();
         wignergen wgen(lmax, rthetas, conv_acc), wgen_neg(lmax, rthetas, conv_acc);
-        t_wigner_init += mpiMgr.Wtime() - t1;
-        ++n_wigner_init;
+        if (omp_get_thread_num() == 0) {
+            t_wigner_init += mpiMgr.Wtime() - t1;
+            ++n_wigner_init;
+        }
         // wigner_estimator estimator(lmax, 100);
         for(long mbeam = 0; mbeam < npsi; ++mbeam) {
             const double dsignb = levels::xpow(mbeam, 1);
@@ -1013,16 +1015,14 @@ void convolver::conviqt_hemiscm_pol_alltoall(levels::arr3< xcomplex<double> > &t
                 t1 = mpiMgr.Wtime();
                 wgen.prepare(mbeam, msky);
                 wgen_neg.prepare(mbeam, -msky);
-                t_wigner_prepare += mpiMgr.Wtime() - t1;
-                ++n_wigner_prepare;
+                if (omp_get_thread_num() == 0) {
+                    t_wigner_prepare += mpiMgr.Wtime() - t1;
+                    ++n_wigner_prepare;
+                }
                 for (long itheta = 0; itheta < my_ntheta; ++itheta) {
                     int firstl1, firstl2;
-                    t1 = mpiMgr.Wtime();
                     const levels::arr<double> &dmm = wgen.calc(itheta, firstl1);
                     const levels::arr<double> &dmmneg = wgen_neg.calc(itheta, firstl2);
-                    t_wigner_calc += mpiMgr.Wtime() - t1;
-                    ++n_wigner_calc;
-                    t1 = mpiMgr.Wtime();
                     xcomplex<double> &Cmm1_pos = my_Cmm1(msky + lmax, mbeam, itheta);
                     xcomplex<double> &Cmm1_neg = my_Cmm1(-msky + lmax, mbeam, itheta);
                     xcomplex<double> &Cmm2_pos = my_Cmm2(msky + lmax, mbeam, itheta);
@@ -1070,8 +1070,6 @@ void convolver::conviqt_hemiscm_pol_alltoall(levels::arr3< xcomplex<double> > &t
                             Cmm2_neg.im += xtmp_8;
                         }
                     }
-                    t_lat_iter += mpiMgr.Wtime() - t1;
-                    ++n_lat_iter;
                 }
             }
         }
@@ -1640,7 +1638,7 @@ void convolver::arrFillingcm(long ntod,
 
 int convolver::convolve(pointing &pntarr, bool calibrate) {
 
-    double tstart = mpiMgr.Wtime();
+    double tstart = mpiMgr.Wtime(), t1;
     ++n_convolve;
 
     const long totsize = pntarr.size() / 5;
@@ -1691,8 +1689,9 @@ int convolver::convolve(pointing &pntarr, bool calibrate) {
     const double ratiodeltas = (halfpi + 1e-10) / cores;
 
     fillingBetaSeg(pntarr, totsize, ratiodeltas, corethetaarr, inBetaSeg);
+
     mpiMgr.barrier();
-    double t1 = mpiMgr.Wtime();
+    t1 = mpiMgr.Wtime();
     mpiMgr.all2all(inBetaSeg, outBetaSeg);
     t_alltoall += mpiMgr.Wtime() - t1;
     ++n_alltoall;
@@ -1706,8 +1705,9 @@ int convolver::convolve(pointing &pntarr, bool calibrate) {
     levels::arr<double> todtmp;
     if (totsize > 0) {
         todtmp.alloc(totsize);
-        for (long ii = 0; ii < totsize; ++ii)
+        for (long ii = 0; ii < totsize; ++ii) {
             todtmp[ii] = pntarr[5 * ii + 3];
+        }
         pntarr.dealloc();
     }
 
@@ -1722,8 +1722,9 @@ int convolver::convolve(pointing &pntarr, bool calibrate) {
         ++n_alltoall;
     }
 
-    if (totsize > 0)
+    if (totsize > 0) {
         pntarr2.dealloc();
+    }
 
     // Count elements on Northern (ntod1) and Southern (ntod2) hemisphere
 
@@ -1739,8 +1740,12 @@ int convolver::convolve(pointing &pntarr, bool calibrate) {
         outpntarr[5 * ii + 3] = ii;
     }
 
-    if (outBetaSegSize != 0)
+    if (outBetaSegSize != 0) {
+        t1 = mpiMgr.Wtime();
         hpsort_arrTheta(outpntarr); // Sort according to latitude
+        t_sort += mpiMgr.Wtime() - t1;
+        ++n_sort;
+    }
 
     // Run the convolution
 
@@ -1751,7 +1756,10 @@ int convolver::convolve(pointing &pntarr, bool calibrate) {
 
     // Sort outpntarr according to the 4th column
     if (outBetaSegSize != 0) {
+        t1 = mpiMgr.Wtime();
         hpsort_arrTOD(outpntarr);
+        t_sort += mpiMgr.Wtime() - t1;
+        ++n_sort;
     }
 
     if (totsize != 0 || outBetaSegSize != 0) {
@@ -1769,7 +1777,10 @@ int convolver::convolve(pointing &pntarr, bool calibrate) {
 
     // Sort according to the 5th column, time stamp
     if (totsize != 0) {
+        t1 = mpiMgr.Wtime();
         hpsort_arrTime(pntarr);
+        t_sort += mpiMgr.Wtime() - t1;
+        ++n_sort;
     }
 
     levels::arr<double> todAll;
@@ -1779,7 +1790,10 @@ int convolver::convolve(pointing &pntarr, bool calibrate) {
 
     // sort time and signal according to time
     if (outBetaSegSize != 0) {
+        t1 = mpiMgr.Wtime();
         hpsort_DDcm(timeAll, todAll);
+        t_sort += mpiMgr.Wtime() - t1;
+        ++n_sort;
     }
 
     for (long ii = 0; ii < cores; ++ii) {
@@ -1828,7 +1842,10 @@ int convolver::convolve(pointing &pntarr, bool calibrate) {
     }
 
     if (totsize > 0) {
+        t1 = mpiMgr.Wtime();
         hpsort_DDcm(outnumarr, outtodarr); // Sort time and signal according to time
+        t_sort += mpiMgr.Wtime() - t1;
+        ++n_sort;
         outnumarr.dealloc();
         double maxtoddiff = 0;
         for (long ii = 0; ii < totsize; ++ii) {
@@ -1879,8 +1896,6 @@ void convolver::report_timing() {
     timing_line(std::string("                wigner_init"), t_wigner_init, n_wigner_init);
     timing_line(std::string("                wigner_prepare"),
                 t_wigner_prepare, n_wigner_prepare);
-    timing_line(std::string("                wigner_calc"), t_wigner_calc, n_wigner_calc);
-    timing_line(std::string("                lat_iter"), t_lat_iter, n_lat_iter);
     timing_line(std::string("                todAnnulus"),  t_todAnnulus, n_todAnnulus);
     timing_line(std::string("                    alltoall_datacube"),
                 t_alltoall_datacube, n_alltoall_datacube);
@@ -1888,8 +1903,8 @@ void convolver::report_timing() {
                 t_conviqt_tod_loop, n_conviqt_tod_loop);
     timing_line(std::string("            conviqt_tod_loop_pol"),
                 t_conviqt_tod_loop_pol, n_conviqt_tod_loop_pol);
-    timing_line(std::string("                weight_ncm"), t_weight_ncm, n_weight_ncm);
     timing_line(std::string("    alltoall"), t_alltoall, n_alltoall);
+    timing_line(std::string("    sort TOD"), t_sort, n_sort);
 }
 
 void convolver::timing_line(std::string label, double timer, long counter) {
