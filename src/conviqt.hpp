@@ -211,9 +211,6 @@ private :
                           levels::arr<double> &TODValue,
                           const long lat);
 
-    void thetaDeltaThetacm(int corenum, double thetaini,
-                           double &theta, double &deltatheta);
-    void deltaTheta2(int corenum, double thetaini, levels::arr<double> &dbeta);
     void ratiobetacalcgreatercm(int &corenum, double theta,
                                 levels::arr<double> &corethetaarr);
     void ratiobetacalcsmallercm(int &corenum, double theta,

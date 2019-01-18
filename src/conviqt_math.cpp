@@ -8,8 +8,6 @@
 
 /*
   int convolve()
-      void thetaDeltaThetacm()
-      void deltaTheta2()
       void fillingBetaSeg()
           void ratiobetacalcsmallercm()
           void ratiobetacalcgreatercm()
@@ -192,7 +190,9 @@ int convolver::set_detector(detector *d) {
 
 
 void convolver::weight_ncm_initialize() {
-    // This method is called from multiple threads at once
+    /*
+      Allocate and initialize base_wgt to be used in weight_ncm
+     */
     if (base_wgt.size() == 0) {
         // Initialize base_wgt only when needed
         base_wgt.resize(npoints, 1);
@@ -214,13 +214,16 @@ void convolver::weight_ncm_initialize() {
 
 
 void convolver::weight_ncm(const double x, std::vector<double> &wgt) {
-    // This method is called from multiple threads at once
+    /*
+      Return the interpolation weights used in conviqt_tod_loop
 
-    std::vector<double> temp_wgt(base_wgt);
+      This method is called from multiple threads at once
+    */
+    memcpy(&(wgt[0]), &(base_wgt[0]), sizeof(double) * npoints);
 
     double mul1 = x;
     for (int m = 1; m < npoints; ++m) {
-        temp_wgt[m] *= mul1;
+        wgt[m] *= mul1;
         mul1 *= x - m;
     }
 
@@ -228,56 +231,8 @@ void convolver::weight_ncm(const double x, std::vector<double> &wgt) {
     const long loffset = npoints - 1;
     const double doffset = x - npoints + 1;
     for (int m = 1; m < npoints; ++m) {
-        temp_wgt[loffset - m] *= mul2;
+        wgt[loffset - m] *= mul2;
         mul2 *= doffset + m;
-    }
-
-    memcpy(&(wgt[0]), &(temp_wgt[0]), sizeof(double) * npoints);
-}
-
-
-void convolver::thetaDeltaThetacm(const int corenum,
-                                  const double thetaini,
-                                  double &theta,
-                                  double &deltatheta) {
-    if (corenum == 0) {
-        theta = 0;
-        deltatheta = thetaini;
-    } else if (corenum == cores - 1) {
-        deltatheta = 1. / cores;
-        theta = thetaini - deltatheta;
-    } else {
-        double a = -0.5 * cos(thetaini);
-        double b = -sin(thetaini) + thetaini * cos(thetaini);
-        double c = (thetaini * sin(thetaini) -
-                    0.5 * cos(thetaini) * thetaini * thetaini -
-                    1. / cores);
-        theta = -(b + sqrt(b * b - 4 * a * c)) / (2 * a);
-        deltatheta = thetaini - theta;
-    }
-
-    std::cerr << "corenum = " << corenum
-              << " thetaini = " << thetaini * 180 / pi
-              << " theta = " << theta * 180 / pi
-              << " deltatheta = " << deltatheta * 180 / pi
-              << std::endl;
-}
-
-
-void convolver::deltaTheta2(const int corenum,
-                            const double thetaini,
-                            levels::arr<double> &dbeta) {
-    dbeta.alloc(corenum + 1);
-    double dy = 0.5 * (1 - thetaini);
-    double yshift = -0.7;
-    double theta2 = pi - abs(asin(1 - dy)) + yshift;
-    double theta1 = pi - abs(asin(sin(theta2) - thetaini));
-    double dt = (theta2 - theta1) / (corenum + 1.);
-    double dbeta0 = sin(theta2);
-
-    for (long ii = corenum; ii >= 0; --ii) {
-        dbeta[ii] = dbeta0 - sin(theta2 - (corenum + 1 - ii) * dt);
-        dbeta0 = sin(theta2 - (corenum + 1 - ii) * dt);
     }
 }
 
@@ -353,7 +308,7 @@ void convolver::fillingBetaSeg(levels::arr<double> &pntarr,
     */
 
     if (CMULT_VERBOSITY > 1) {
-        std::cerr << "Entered fillingBetaSeg in core = " << corenum << std::endl;
+        std::cerr << corenum << " : Entering fillingBetaSeg" << std::endl;
     }
 
     inBetaSeg.alloc(cores);
@@ -381,7 +336,7 @@ void convolver::fillingBetaSeg(levels::arr<double> &pntarr,
     }
 
     if (CMULT_VERBOSITY > 1) {
-        std::cerr << "Leaving fillingBetaSeg in core = " << corenum << std::endl;
+        std::cerr << corenum << " : Leaving fillingBetaSeg" << std::endl;
     }
 }
 
@@ -943,8 +898,8 @@ void convolver::conviqt_hemiscm_pol_alltoall(levels::arr3< xcomplex<double> > &t
     try {
         my_Cmm1.alloc(nphi, npsi, my_ntheta);
         my_Cmm2.alloc(nphi, npsi, my_ntheta);
-        my_tod1.alloc(my_ntheta, nphi, npsi);
-        my_tod2.alloc(my_ntheta, nphi, npsi);
+        my_tod1.alloc(nphi, npsi, my_ntheta);
+        my_tod2.alloc(nphi, npsi, my_ntheta);
     } catch (std::bad_alloc &e) {
         std::cerr << "conviqt_hemiscm_pol_alltoall :  Out of memory allocating "
                   << nphi * npsi * my_ntheta * 4 * 2 * 8. / 1024 / 1024
@@ -1481,13 +1436,13 @@ void convolver::conviqt_tod_loop(levels::arr<long> &lowerIndex,
             }
             cosang[0] = 0.5;
             const double weight1 = 2 * wgt1[thetaoffset - itheta0[ii]];
-            for (int phiIndex = 0; phiIndex < npoints; ++phiIndex) {
-                const double weight = wgt2[phiIndex] * weight1;
-                long newphiIndex = iphi0 + phiIndex;
-                if (newphiIndex >= nphi) {
-                    newphiIndex -= nphi;
+            for (int iphi = 0; iphi < npoints; ++iphi) {
+                const double weight = wgt2[iphi] * weight1;
+                long iphinew = iphi0 + iphi;
+                if (iphinew >= nphi) {
+                    iphinew -= nphi;
                 }
-                const xcomplex<double> *ca = &(conviqtarr[newphiIndex][0]);
+                const xcomplex<double> *ca = &(conviqtarr[iphinew][0]);
                 double x = 0;
                 for (long ipsi = 0; ipsi < npsi; ++ipsi) {
                     x += cosang[ipsi] * ca[ipsi].re - sinang[ipsi] * ca[ipsi].im;
@@ -1535,6 +1490,14 @@ void convolver::arrFillingcm(long ntod,
 
 int convolver::convolve(pointing &pntarr, bool calibrate) {
 
+    if (CMULT_VERBOSITY > 1) {
+        std::cerr << corenum << " : Convolving : pol = " << pol
+                  << " lmax = " << lmax
+                  << " beammmax = " << beammmax
+                  << " order = " << order
+                  << std::endl;
+    }
+
     double tstart = mpiMgr.Wtime(), t1;
     ++n_convolve;
 
@@ -1564,18 +1527,6 @@ int convolver::convolve(pointing &pntarr, bool calibrate) {
 
     levels::arr<double> corethetaarr(cores);
     distribute_colatitudes(pntarr, totsize, corethetaarr);
-
-    // DEBUG begin
-    /*
-    if (mpiMgr.master()) {
-        for (int corenum=0; corenum < cores; ++corenum) {
-            double theta = corethetaarr[corenum];
-            std::cerr << corenum << " : theta = " << theta * 180 / pi
-                      << std::endl;
-        }
-    }
-    */
-    // DEBUG end
 
     long outBetaSegSize;
     levels::arr<int> inBetaSeg, outBetaSeg;
@@ -1727,10 +1678,11 @@ int convolver::convolve(pointing &pntarr, bool calibrate) {
             mintodall = std::min(mintodall, outtodarr[ii]);
         }
 
-        if (totsize > 0)
-            std::cerr << "maxtodall = " << maxtodall  << "   mintodall = "
-                      << mintodall << "   outtodarr.size()/totsize = "
+        if (totsize > 0) {
+            std::cerr << corenum << " : maxtodall = " << maxtodall << " mintodall = "
+                      << mintodall << " outtodarr.size()/totsize = "
                       << outtodarr.size() / totsize * 1. << std::endl;
+        }
     }
 
     double calibration = 1;
