@@ -45,7 +45,7 @@
                   wignergen.calc()
                   void todAnnulus()
                   alltoall_datacube()
-              void conviqt_tod_loop_pol()
+              void conviqt_tod_loop()
                   void weight_ncm()
 
       hpsort_DL()
@@ -146,7 +146,6 @@ convolver::convolver(sky *s, beam *b, detector *d, bool pol,
     t_conviqt_hemiscm_alltoall = 0;
     t_todAnnulus = 0;
     t_interpolTOD_arrTestcm_pol = 0;
-    t_conviqt_tod_loop_pol = 0;
     t_conviqt_hemiscm_pol_alltoall = 0;
     t_alltoall_datacube = 0;
 
@@ -159,7 +158,6 @@ convolver::convolver(sky *s, beam *b, detector *d, bool pol,
     n_conviqt_hemiscm_alltoall = 0;
     n_todAnnulus = 0;
     n_interpolTOD_arrTestcm_pol = 0;
-    n_conviqt_tod_loop_pol = 0;
     n_conviqt_hemiscm_pol_alltoall = 0;
     n_alltoall_datacube = 0;
 
@@ -193,7 +191,7 @@ int convolver::set_detector(detector *d) {
 }
 
 
-void convolver::weight_ncm(const double x, levels::arr<double> &wgt) {
+void convolver::weight_ncm_initialize() {
     // This method is called from multiple threads at once
     if (base_wgt.size() == 0) {
         // Initialize base_wgt only when needed
@@ -212,52 +210,26 @@ void convolver::weight_ncm(const double x, levels::arr<double> &wgt) {
     } else if (base_wgt.size() != npoints) {
         throw std::runtime_error("base_wgt changed dimensions");
     }
-
-    std::vector<double> temp_wgt(base_wgt);
-    double mul1 = x;
-    for (int m = 1; m < npoints; ++m) {
-        temp_wgt[m] *= mul1;
-        mul1 *= x - m;
-    }
-
-    double mul2 = x - npoints + 1;
-    for (int m = 1; m < npoints; ++m) {
-        temp_wgt[npoints - m - 1] *= mul2;
-        mul2 *= x - npoints + m + 1;
-    }
-
-    memcpy(&(wgt[0]), &(temp_wgt[0]), sizeof(double) * npoints);
 }
 
 
 void convolver::weight_ncm(const double x, std::vector<double> &wgt) {
     // This method is called from multiple threads at once
-    if (base_wgt.size() == 0) {
-        // Initialize base_wgt only when needed
-        base_wgt.resize(npoints, 1);
-        for (int m = 0; m < (int)npoints; ++m) {
-            for (int n = 0; n < m; ++n)
-                base_wgt[m] *= m - n;
-            for (int n = m + 1; n < (int)npoints; ++n)
-                base_wgt[m] *= m - n;
-        }
-        for (int m = 0; m < (int)npoints; ++m)
-            base_wgt[m] = 1. / base_wgt[m];
-    } else if (base_wgt.size() != npoints) {
-        throw std::runtime_error("base_wgt changed dimensions");
-    }
 
     std::vector<double> temp_wgt(base_wgt);
+
     double mul1 = x;
-    for (int m = 1; m < (int)npoints; ++m) {
+    for (int m = 1; m < npoints; ++m) {
         temp_wgt[m] *= mul1;
         mul1 *= x - m;
     }
 
     double mul2 = x - npoints + 1;
-    for (int m = 1; m < (int)npoints; ++m) {
-        temp_wgt[npoints - m - 1] *= mul2;
-        mul2 *= x - npoints + m + 1;
+    const long loffset = npoints - 1;
+    const double doffset = x - npoints + 1;
+    for (int m = 1; m < npoints; ++m) {
+        temp_wgt[loffset - m] *= mul2;
+        mul2 *= doffset + m;
     }
 
     memcpy(&(wgt[0]), &(temp_wgt[0]), sizeof(double) * npoints);
@@ -971,8 +943,8 @@ void convolver::conviqt_hemiscm_pol_alltoall(levels::arr3< xcomplex<double> > &t
     try {
         my_Cmm1.alloc(nphi, npsi, my_ntheta);
         my_Cmm2.alloc(nphi, npsi, my_ntheta);
-        my_tod1.alloc(nphi, npsi, my_ntheta);
-        my_tod2.alloc(nphi, npsi, my_ntheta);
+        my_tod1.alloc(my_ntheta, nphi, npsi);
+        my_tod2.alloc(my_ntheta, nphi, npsi);
     } catch (std::bad_alloc &e) {
         std::cerr << "conviqt_hemiscm_pol_alltoall :  Out of memory allocating "
                   << nphi * npsi * my_ntheta * 4 * 2 * 8. / 1024 / 1024
@@ -1239,12 +1211,19 @@ void convolver::todAnnulus(levels::arr3<xcomplex<double> > &tod,
 #pragma omp for schedule(static, 8)
         for (long msky = -lmax; msky <= lmax; ++msky) {
             const long ii = msky + lmax;
+            const double cos1 = cs[ii];
+            const double sin1 = sn[ii];
             for (long mbeam = 0; mbeam < npsi; ++mbeam) {
                 for (long lat = 0; lat < NThetaIndex; ++lat) {
-                    const double tmpR = Cmm(ii, mbeam, lat).re;
-                    const double tmpI = Cmm(ii, mbeam, lat).im;
-                    Cmm(ii, mbeam, lat).re = cs[ii] * tmpR + sn[ii] * tmpI;
-                    Cmm(ii, mbeam, lat).im = cs[ii] * tmpI - sn[ii] * tmpR;
+                    // Get references to the complex parts to
+                    // avoid overhead
+                    xcomplex<double> &Cmmref = Cmm(ii, mbeam, lat);
+                    double &CmmR = Cmmref.re;
+                    double &CmmI = Cmmref.im;
+                    const double tempR = CmmR;
+                    const double tempI = CmmI;
+                    CmmR = cos1 * tempR + sin1 * tempI;
+                    CmmI = cos1 * tempI - sin1 * tempR;
                 }
             }
         } // end of parallel for
@@ -1266,18 +1245,28 @@ void convolver::todAnnulus(levels::arr3<xcomplex<double> > &tod,
 #pragma omp for schedule(static, 8)
         for (long msky = -lmax; msky <= lmax; ++msky) {
             const long ii = msky + lmax;
+            const double cos0 = cs0[ii];
+            const double sin0 = sn0[ii];
             for (long mbeam = 0; mbeam < npsi; ++mbeam) {
                 const long jj = mbeam + lmax;
+                const double cos1 = cs[jj];
+                const double sin1 = sn[jj];
+                double tempR, tempI;
                 for (long lat = 0; lat < NThetaIndex; ++lat) {
-                    double tmpR = tod(ii, mbeam, lat).re;
-                    double tmpI = tod(ii, mbeam, lat).im;
-                    tod(ii, mbeam, lat).re = cs0[ii] * tmpR + sn0[ii] * tmpI;
-                    tod(ii, mbeam, lat).im = cs0[ii] * tmpI - sn0[ii] * tmpR;
+                    // Get references to the complex parts to
+                    // avoid overhead
+                    xcomplex<double> &todref = tod(ii, mbeam, lat);
+                    double &todR = todref.re;
+                    double &todI = todref.im;
+                    tempR = todR;  // Copy the value
+                    tempI = todI;
+                    todR = cos0 * tempR + sin0 * tempI;
+                    todI = cos0 * tempI - sin0 * tempR;
                     // Rotate in psi space
-                    tmpR = tod(ii, mbeam, lat).re;
-                    tmpI = tod(ii, mbeam, lat).im;
-                    tod(ii, mbeam, lat).re = cs[jj] * tmpR + sn[jj] * tmpI;
-                    tod(ii, mbeam, lat).im = cs[jj] * tmpI - sn[jj] * tmpR;
+                    tempR = todR;  // Copy updated value
+                    tempI = todI;
+                    todR = cos1 * tempR + sin1 * tempI;
+                    todI = cos1 * tempI - sin1 * tempR;
                 }
             }
         } // end of parallel for
@@ -1403,15 +1392,15 @@ void convolver::interpolTOD_arrTestcm_pol(levels::arr<double> &outpntarr1,
                                  itheta0_1[ntod1 - 1], itheta0_2[ntod2 - 1]);
 
     for (int thetaIndex = 0; thetaIndex < NThetaIndex1; ++thetaIndex) {
-        conviqt_tod_loop_pol(lowerIndex1, upperIndex1, outpntarr1, TODAsym1,
-                             thetaIndex, itheta0_1, ntod1, TODValue1,
-                             thetaIndex);
+        conviqt_tod_loop(lowerIndex1, upperIndex1, outpntarr1, TODAsym1,
+                         thetaIndex, itheta0_1, ntod1, TODValue1,
+                         thetaIndex);
     }
 
     for (int thetaIndex = 0; thetaIndex < NThetaIndex2; ++thetaIndex) {
-        conviqt_tod_loop_pol(lowerIndex2, upperIndex2, outpntarr2, TODAsym2,
-                             thetaIndex, itheta0_2, ntod2, TODValue2,
-                             thetaIndex);
+        conviqt_tod_loop(lowerIndex2, upperIndex2, outpntarr2, TODAsym2,
+                         thetaIndex, itheta0_2, ntod2, TODValue2,
+                         thetaIndex);
     }
 
     if (CMULT_VERBOSITY > 1) {
@@ -1429,7 +1418,8 @@ void convolver::conviqt_tod_loop(levels::arr<long> &lowerIndex,
                                  const long thetaIndex,
                                  levels::arr<long> &itheta0,
                                  const long ntod,
-                                 levels::arr<double> &TODValue, const long lat) {
+                                 levels::arr<double> &TODValue,
+                                 const long lat) {
     if (CMULT_VERBOSITY > 1) {
         std::cerr << corenum << " : Entering conviqt_tod_loop" << std::endl;
     }
@@ -1452,16 +1442,16 @@ void convolver::conviqt_tod_loop(levels::arr<long> &lowerIndex,
         }
     }
 
-    // Call weight_ncm once unthreaded to make sure the auxiliary arrays are allocated
+    weight_ncm_initialize();  // Ensure base_wgt is set-up
 
-    std::vector<double> wgt_temp(max_order + 1, 0.);
-    weight_ncm(0., wgt_temp);
+    const long thetaoffset = thetaIndex + itheta0[ntod - 1];
 
 #pragma omp parallel default(shared)
     {
         std::vector<double> cosang(npsi), sinang(npsi);
-        std::vector<double> wgt1(max_order + 1, 0.);
-        std::vector<double> wgt2(max_order + 1, 0.);
+        std::vector<double> wgt1(npoints, 0.);
+        std::vector<double> wgt2(npoints, 0.);
+
 #pragma omp for schedule(static, 1)
         for (int ii = lowerIndex[thetaIndex]; ii >= upperIndex[thetaIndex]; --ii) {
             // Co-latitude, theta
@@ -1490,120 +1480,27 @@ void convolver::conviqt_tod_loop(levels::arr<long> &lowerIndex,
                 sinang[ipsi + 1] = sinang[ipsi] * cosomg + cosang[ipsi] * sinomg;
             }
             cosang[0] = 0.5;
-            const double weight1 = 2 * wgt1[thetaIndex - (itheta0[ii] - itheta0[ntod - 1])];
+            const double weight1 = 2 * wgt1[thetaoffset - itheta0[ii]];
             for (int phiIndex = 0; phiIndex < npoints; ++phiIndex) {
                 const double weight = wgt2[phiIndex] * weight1;
                 long newphiIndex = iphi0 + phiIndex;
                 if (newphiIndex >= nphi) {
                     newphiIndex -= nphi;
                 }
-                xcomplex<double> *ca = &(conviqtarr[newphiIndex][0]);
+                const xcomplex<double> *ca = &(conviqtarr[newphiIndex][0]);
                 double x = 0;
                 for (long ipsi = 0; ipsi < npsi; ++ipsi) {
-                    x += cosang[ipsi] * (*ca).re - sinang[ipsi] * (*ca).im;
-                    ++ca;
+                    x += cosang[ipsi] * ca[ipsi].re - sinang[ipsi] * ca[ipsi].im;
                 }
                 TODValue[ii] += weight * x;
             }
         }
+
     } // end parallel region
 
     t_conviqt_tod_loop += mpiMgr.Wtime() - tstart;
     if (CMULT_VERBOSITY > 1) {
         std::cerr << corenum << " : Exiting conviqt_tod_loop" << std::endl;
-    }
-}
-
-
-void convolver::conviqt_tod_loop_pol(levels::arr<long> &lowerIndex,
-                                     levels::arr<long> &upperIndex,
-                                     levels::arr<double> &outpntarr,
-                                     levels::arr3<xcomplex<double> > &TODAsym,
-                                     long thetaIndex,
-                                     levels::arr<long> &itheta0,
-                                     long ntod,
-                                     levels::arr<double> &TODValue,
-                                     long lat) {
-    if (CMULT_VERBOSITY > 1) {
-        std::cerr << corenum << " : Entering conviqt_tod_loop_pol" << std::endl;
-    }
-    double tstart = mpiMgr.Wtime();
-    ++n_conviqt_tod_loop_pol;
-    levels::arr2< xcomplex<double> > conviqtarr;
-    try {
-        conviqtarr.alloc(nphi, npsi);
-    } catch (std::bad_alloc &e) {
-        std::cerr << "conviqt_tod_loop_pol : Out of memory allocating "
-                  << nphi * npsi * 16. / 1024 / 1024 << "MB for conviqtarr"
-                  << std::endl;
-        throw;
-    }
-
-    for (long ii = 0; ii < nphi; ++ii) {
-        for (long jj = 0; jj < npsi; ++jj) {
-            conviqtarr[ii][jj] = TODAsym(ii, jj, lat);
-        }
-    }
-
-    // Call weight_ncm once unthreaded to make sure the auxiliary arrays are allocated
-
-    std::vector<double> wgt_temp(max_order + 1, 0.);
-    weight_ncm(0., wgt_temp);
-
-#pragma omp parallel default(shared)
-    {
-        std::vector<double> cosang(npsi), sinang(npsi);
-        std::vector<double> wgt1(max_order + 1, 0.);
-        std::vector<double> wgt2(max_order + 1, 0.);
-#pragma omp for schedule(static, 1)
-        for (int ii = lowerIndex[thetaIndex]; ii >= upperIndex[thetaIndex]; --ii) {
-            // Co-latitude, theta
-            double frac = (outpntarr[5 * ii + 1] - theta0) * inv_delta_theta;
-            frac -= itheta0[ii];
-            weight_ncm(frac, wgt1);
-            // Longitude, phi
-            frac = outpntarr[5 * ii] * inv_delta_phi - phioffset;
-            frac = levels::fmodulo(frac, double(nphi));
-            int iphi0 = int(frac) - ioffset;
-            frac -= iphi0;
-            if (iphi0 >= nphi) {
-                iphi0 -= nphi;
-            } else if (iphi0 < 0) {
-                iphi0 += nphi;
-            }
-            weight_ncm(frac, wgt2);
-            // Position angle (psi)
-            const double omega = outpntarr[5 * ii + 2] + halfpi;
-            const double sinomg = sin(omega);
-            const double cosomg = cos(omega);
-            cosang[0] = 1;
-            sinang[0] = 0;
-            for (long ipsi = 0; ipsi < npsi - 1; ++ipsi) {
-                cosang[ipsi + 1] = cosang[ipsi] * cosomg - sinang[ipsi] * sinomg;
-                sinang[ipsi + 1] = sinang[ipsi] * cosomg + cosang[ipsi] * sinomg;
-            }
-            cosang[0] = 0.5;
-            double weight1 = 2 * wgt1[thetaIndex - (itheta0[ii] - itheta0[ntod - 1])];
-            for (int iphi = 0; iphi < npoints; ++iphi) {
-                double weight = wgt2[iphi] * weight1;
-                long iphinew = iphi0 + iphi;
-                if (iphinew >= nphi) {
-                    iphinew -= nphi;
-                }
-                xcomplex<double> *ca = &(conviqtarr[iphinew][0]);
-                double x = 0;
-                for (long ipsi = 0; ipsi < npsi; ++ipsi) {
-                    x += cosang[ipsi] * (*ca).re - sinang[ipsi] * (*ca).im;
-                    ++ca;
-                }
-                TODValue[ii] += weight * x;
-            }
-        }
-    }  // end parallel region
-
-    t_conviqt_tod_loop_pol += mpiMgr.Wtime() - tstart;
-    if (CMULT_VERBOSITY > 1) {
-        std::cerr << corenum << " : Exiting conviqt_tod_loop_pol" << std::endl;
     }
 }
 
@@ -1901,8 +1798,6 @@ void convolver::report_timing() {
                 t_alltoall_datacube, n_alltoall_datacube);
     timing_line(std::string("            conviqt_tod_loop"),
                 t_conviqt_tod_loop, n_conviqt_tod_loop);
-    timing_line(std::string("            conviqt_tod_loop_pol"),
-                t_conviqt_tod_loop_pol, n_conviqt_tod_loop_pol);
     timing_line(std::string("    alltoall"), t_alltoall, n_alltoall);
     timing_line(std::string("    sort TOD"), t_sort, n_sort);
 }

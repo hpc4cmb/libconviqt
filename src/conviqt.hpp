@@ -160,7 +160,7 @@ private :
         n_distribute_colatitudes, n_conviqt_hemiscm_pol_alltoall,
         n_alltoall_datacube, n_sort;
 
-    void weight_ncm(double x, levels::arr<double> &wgt);
+    void weight_ncm_initialize();
     void weight_ncm(double x, std::vector<double> &wgt);
 
     void get_latitude_tables(const long NThetaIndex1,
@@ -205,21 +205,11 @@ private :
                           levels::arr<long> &upperIndex,
                           levels::arr<double> &outpntarr,
                           levels::arr3< xcomplex<double> > &TODAsym,
-                          long thetaIndex,
+                          const long thetaIndex,
                           levels::arr<long> &itheta0,
-                          long ntod,
+                          const long ntod,
                           levels::arr<double> &TODValue,
-                          long lat);
-
-    void conviqt_tod_loop_pol(levels::arr<long> &lowerIndex,
-                              levels::arr<long> &upperIndex,
-                              levels::arr<double> &outpntarr,
-                              levels::arr3< xcomplex<double> > &TODAsym,
-                              long thetaIndex,
-                              levels::arr<long> &itheta0,
-                              long ntod,
-                              levels::arr<double> &TODValue,
-                              long lat);
+                          const long lat);
 
     void thetaDeltaThetacm(int corenum, double thetaini,
                            double &theta, double &deltatheta);
