@@ -144,8 +144,7 @@ private :
 
     double t_convolve, t_todgen, t_arrFillingcm, t_interpolTOD_arrTestcm,
         t_itheta0SetUp, t_ithetacalc, t_conviqt_tod_loop,
-        t_conviqt_hemiscm_alltoall,
-        t_interpolTOD_arrTestcm_pol, t_conviqt_tod_loop_pol, t_todAnnulus,
+        t_conviqt_hemiscm_alltoall, t_todAnnulus,
         t_wigner_init, t_wigner_prepare,
         t_alltoall, t_todRedistribution5cm,
         t_distribute_colatitudes, t_conviqt_hemiscm_pol_alltoall,
@@ -153,8 +152,7 @@ private :
 
     long n_convolve, n_todgen, n_arrFillingcm, n_interpolTOD_arrTestcm,
         n_itheta0SetUp, n_ithetacalc, n_conviqt_tod_loop,
-        n_conviqt_hemiscm_alltoall,
-        n_interpolTOD_arrTestcm_pol, n_conviqt_tod_loop_pol, n_todAnnulus,
+        n_conviqt_hemiscm_alltoall, n_todAnnulus,
         n_wigner_init, n_wigner_prepare,
         n_alltoall, n_todRedistribution5cm,
         n_distribute_colatitudes, n_conviqt_hemiscm_pol_alltoall,
@@ -217,16 +215,10 @@ private :
                                 levels::arr<double> &corethetaarr);
 
     void interpolTOD_arrTestcm(levels::arr<double> &outpntarr1,
-                                  levels::arr<double> &outpntarr2,
-                                  levels::arr<double> &TODValue1,
-                                  levels::arr<double> &TODValue2,
-                                  long ntod1, long ntod2);
-
-    void interpolTOD_arrTestcm_pol(levels::arr<double> &outpntarr1,
-                                   levels::arr<double> &outpntarr2,
-                                   levels::arr<double> &TODValue1,
-                                   levels::arr<double> &TODValue2,
-                                   long ntod1, long ntod2);
+                               levels::arr<double> &outpntarr2,
+                               levels::arr<double> &TODValue1,
+                               levels::arr<double> &TODValue2,
+                               long ntod1, long ntod2);
 
     void itheta0SetUp(levels::arr<double> outpntarr,
                       long ntod,
