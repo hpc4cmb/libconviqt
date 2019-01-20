@@ -124,7 +124,7 @@ private :
     // Variables related to the gridding of the data cube
 
     double phi0, dphi, inv_delta_phi, phioffset, dtheta, theta0, inv_delta_theta;
-    long npsi, nphi, halfmargin, margin, ntheta, max_order;
+    long npsi, nphi, halfmargin, margin, ntheta;
     int npoints, ioffset;
 
     long beta_to_itheta(double beta);

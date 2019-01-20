@@ -95,21 +95,20 @@ convolver::convolver(sky *s, beam *b, detector *d, bool pol,
 
     // data cube gridding
 
+    npoints = order + 1;
+    ioffset = order / 2;
     phi0 = halfpi;
     npsi = this->beammmax + 1;
     nphi = 2 * this->lmax + 1;
     dphi = 2 * pi / nphi;
     inv_delta_phi = 1. / dphi;
     phioffset = phi0 / dphi;
-    halfmargin = 10;
-    margin = halfmargin * 2 + 1;
+    halfmargin = npoints / 2 + 1;
+    margin = 2 * halfmargin;
     ntheta = this->lmax + 1 + margin;
     dtheta = -pi / (ntheta - margin);
     theta0 = pi - halfmargin * dtheta;
     inv_delta_theta = 1 / dtheta;
-    max_order = 19;
-    npoints = order + 1;
-    ioffset = order / 2;
 
     // profiling
 
