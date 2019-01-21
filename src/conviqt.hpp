@@ -142,20 +142,20 @@ private :
     long lmax, beammmax, order;
     std::vector<double> base_wgt;
 
-    double t_convolve, t_todgen, t_arrFillingcm, t_interpolTOD_arrTestcm,
+    double t_convolve, t_todgen, t_arrFillingcm, t_interpolTOD,
         t_itheta0SetUp, t_ithetacalc, t_conviqt_tod_loop,
-        t_conviqt_hemiscm_alltoall, t_todAnnulus,
+        t_conviqt_hemiscm, t_todAnnulus,
         t_wigner_init, t_wigner_prepare,
         t_alltoall, t_todRedistribution5cm,
-        t_distribute_colatitudes, t_conviqt_hemiscm_pol_alltoall,
+        t_distribute_colatitudes, t_conviqt_hemiscm_pol,
         t_alltoall_datacube, t_sort;
 
-    long n_convolve, n_todgen, n_arrFillingcm, n_interpolTOD_arrTestcm,
+    long n_convolve, n_todgen, n_arrFillingcm, n_interpolTOD,
         n_itheta0SetUp, n_ithetacalc, n_conviqt_tod_loop,
-        n_conviqt_hemiscm_alltoall, n_todAnnulus,
+        n_conviqt_hemiscm, n_todAnnulus,
         n_wigner_init, n_wigner_prepare,
         n_alltoall, n_todRedistribution5cm,
-        n_distribute_colatitudes, n_conviqt_hemiscm_pol_alltoall,
+        n_distribute_colatitudes, n_conviqt_hemiscm_pol,
         n_alltoall_datacube, n_sort;
 
     void weight_ncm_initialize();
@@ -170,19 +170,19 @@ private :
                              std::vector<long> &my_itheta,
                              std::vector<int> &itheta_core);
 
-    void conviqt_hemiscm_alltoall(levels::arr3< xcomplex<double> > &tod1,
-                                  levels::arr3< xcomplex<double> > &tod2,
-                                  long NThetaIndex1,
-                                  long NThetaIndex2,
-                                  int ithetaoffset1,
-                                  int ithetaoffset2);
+    void conviqt_hemiscm(levels::arr3< xcomplex<double> > &tod1,
+                         levels::arr3< xcomplex<double> > &tod2,
+                         const long NThetaIndex1,
+                         const long NThetaIndex2,
+                         const int ithetaoffset1,
+                         const int ithetaoffset2);
 
-    void conviqt_hemiscm_pol_alltoall(levels::arr3< xcomplex<double> > &tod1,
-                                      levels::arr3< xcomplex<double> > &tod2,
-                                      long NThetaIndex1,
-                                      long NThetaIndex2,
-                                      int ithetaoffset1,
-                                      int ithetaoffset2);
+    void conviqt_hemiscm_pol(levels::arr3< xcomplex<double> > &tod1,
+                             levels::arr3< xcomplex<double> > &tod2,
+                             const long NThetaIndex1,
+                             const long NThetaIndex2,
+                             const int ithetaoffset1,
+                             const int ithetaoffset2);
 
     void alltoall_datacube(std::vector<char> &need_itheta_core,
                            std::vector<int> &itheta_core,
@@ -191,13 +191,13 @@ private :
                            levels::arr3< xcomplex<double> > &tod,
                            const long ithetaoffset, const long NThetaIndex);
 
-    void todAnnulus(levels::arr3< xcomplex<double> > &tod1,
+    void todAnnulus(levels::arr3< xcomplex<double> > &tod,
                     levels::arr3< xcomplex<double> > &Cmm,
                     levels::arr<double> &cs,
                     levels::arr<double> &sn,
                     levels::arr<double> &cs0,
                     levels::arr<double> &sn0,
-                    long NThetaIndex1);
+                    const long NThetaIndex);
 
     void conviqt_tod_loop(levels::arr<long> &lowerIndex,
                           levels::arr<long> &upperIndex,
@@ -214,14 +214,14 @@ private :
     void ratiobetacalcsmallercm(int &corenum, double theta,
                                 levels::arr<double> &corethetaarr);
 
-    void interpolTOD_arrTestcm(levels::arr<double> &outpntarr1,
-                               levels::arr<double> &outpntarr2,
-                               levels::arr<double> &TODValue1,
-                               levels::arr<double> &TODValue2,
-                               long ntod1, long ntod2);
+    void interpolTOD(levels::arr<double> &outpntarr1,
+                     levels::arr<double> &outpntarr2,
+                     levels::arr<double> &TODValue1,
+                     levels::arr<double> &TODValue2,
+                     const long ntod1, const long ntod2);
 
     void itheta0SetUp(levels::arr<double> outpntarr,
-                      long ntod,
+                      const long ntod,
                       long &NThetaIndex,
                       levels::arr<long> &itheta0,
                       levels::arr<long> &lowerIndex,
@@ -230,7 +230,7 @@ private :
 
     void ithetacalc(levels::arr<long> &itheta0,
                     levels::arr<double> &outpntarr,
-                    long ntod);
+                    const long ntod);
 
     void fillingBetaSeg(levels::arr<double> & pntarr, const long arrsize,
                         const double ratiodeltas,
@@ -239,24 +239,15 @@ private :
     void todRedistribution5cm(levels::arr<double> pntarr, levels::arr<int> inBetaSeg,
                               levels::arr<int> outBetaSeg, levels::arr<int> &inBetaSegAcc,
                               levels::arr<int> &outBetaSegAcc, long &outBetaSegSize,
-                              levels::arr<double> &pntarr2, long totsize,
+                              levels::arr<double> &pntarr2, const long totsize,
                               levels::arr<int> &inOffset, levels::arr<int> &outOffset,
-                              double ratiodeltas, levels::arr<double> &corethetaarr);
+                              const double ratiodeltas, levels::arr<double> &corethetaarr);
 
-    void todgen(long ntod1, long ntod2,
-                levels::arr<double> &todTest_arr,
-                levels::arr<double> &timeTest_arr,
-                levels::arr<double> &todTest_arr2,
-                levels::arr<double> &timeTest_arr2,
+    void todgen(const long ntod1,
+                const long ntod2,
                 levels::arr<double> &outpntarr);
 
-    void preReorderingStep(long ntod1, long ntod2,
-                           levels::arr<double> &todAll,
-                           levels::arr<double> &todTest_arr1,
-                           levels::arr<double> &todTest_arr2);
-
     void arrFillingcm(long ntod,
-                      levels::arr<double> &timeTest_arr,
                       levels::arr<double> &outpntarrx,
                       levels::arr<double> &outpntarr,
                       long offindex);

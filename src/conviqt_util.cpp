@@ -69,8 +69,8 @@ void hpsort_arr(levels::arr<double> &ra, int sortcol) {
     // Sort the pairs
 
     std::sort(pairs.begin(), pairs.end(),
-              [](std::pair<double,size_t> p1,
-                 std::pair<double,size_t> p2
+              [](std::pair<double, size_t> p1,
+                 std::pair<double, size_t> p2
                  ) -> bool {return p1.first < p2.first;});
 
     // Order each column based on the sorted indices
@@ -89,8 +89,8 @@ void hpsort_arr(levels::arr<double> &ra, int sortcol) {
                 size_t j = pairs[i].second;
                 temp[i] = ra[5 * j + col];
             }
-            for (i=0; i<n; ++i) {
-                ra[5*i+col] = temp[i];
+            for (i = 0; i < n; ++i) {
+                ra[5 * i + col] = temp[i];
             }
         }
     }
