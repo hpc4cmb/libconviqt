@@ -1401,6 +1401,9 @@ void convolver::arrFillingcm(long ntod,
     /*
       Copy North or South hemisphere data into a separate pntarr
      */
+    if (CMULT_VERBOSITY > 1) {
+        std::cerr << corenum << " : Entering arrFillingcm" << std::endl;
+    }
     double tstart = mpiMgr.Wtime();
     ++n_arrFillingcm;
     outpntarrx.alloc(5 * ntod);
@@ -1416,6 +1419,11 @@ void convolver::arrFillingcm(long ntod,
         outpntarrx[5 * ii + 4] = outpntarr[5 * (ii + offindex) + 4];
     }
     hpsort_arrTheta(outpntarrx);
+
+    t_arrFillingcm += mpiMgr.Wtime() - tstart;
+    if (CMULT_VERBOSITY > 1) {
+        std::cerr << corenum << " : Exiting arrFillingcm" << std::endl;
+    }
 }
 
 
