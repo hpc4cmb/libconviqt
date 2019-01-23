@@ -362,8 +362,9 @@ void convolver::fillingBetaSeg(levels::arr<double> &pntarr,
 void convolver::ratiobetacalcgreatercm(int &corenum, const double theta,
                                        levels::arr<double> &corethetaarr) {
     while (corenum < cores - 1) {
-        if (theta < corethetaarr[corenum + 1])
+        if (theta < corethetaarr[corenum + 1]) {
             break;
+        }
         ++corenum;
     }
 }
@@ -372,8 +373,9 @@ void convolver::ratiobetacalcgreatercm(int &corenum, const double theta,
 void convolver::ratiobetacalcsmallercm(int &corenum, const double theta,
                                        levels::arr<double> &corethetaarr) {
     while (corenum > 0) {
-        if (theta > corethetaarr[corenum])
+        if (theta > corethetaarr[corenum]) {
             break;
+        }
         --corenum;
     }
 }
@@ -423,13 +425,14 @@ void convolver::todRedistribution5cm(levels::arr<double> pntarr,
             pntarr2.alloc(5 * totsize);
         } catch (std::bad_alloc &e) {
             std::cerr << " todRedistribution5cm : Out of memory allocating "
-                  << (5 * totsize) * 8. / 1024 / 1024 << "MB for pntarr2"
+                      << (5 * totsize) * 8. / 1024 / 1024 << "MB for pntarr2"
                       << std::endl;
             throw;
         }
         // Pack the data in pntarr into pntarr2 for sending
         pntarr2.fill(0);
-        levels::arr<int> countbeta(cores, 0);
+        long offset1 = 0;
+        levels::arr<int> offset2(inOffset);
         for (long ii = 0; ii < totsize; ++ii) {
             double theta = pntarr[5 * ii + 1];
             if (theta < 0 || theta > pi) {
@@ -440,17 +443,14 @@ void convolver::todRedistribution5cm(levels::arr<double> pntarr,
                 theta = pi - theta;
             }
             int corenum = theta / ratiodeltas;
-            if (theta >= corethetaarr[corenum]){
+            if (theta >= corethetaarr[corenum]) {
                 ratiobetacalcgreatercm(corenum, theta, corethetaarr);
             } else {
                 ratiobetacalcsmallercm(corenum, theta, corethetaarr);
             }
-            const long i1 = 5 * ii;
-            const long i2 = inOffset[corenum] + countbeta[corenum];
-            for (long k = 0; k < 5; ++k) {
-                pntarr2[i2 + k] = pntarr[i1 + k];
-            }
-            countbeta[corenum] += 5;
+            memcpy(&(pntarr2[offset2[corenum]]), &(pntarr[offset1]), 5 * sizeof(double));
+            offset1 += 5;
+            offset2[corenum] += 5;
 	}
     }
 
