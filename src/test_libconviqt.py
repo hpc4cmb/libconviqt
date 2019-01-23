@@ -77,6 +77,9 @@ libconviqt.conviqt_beam_lmax.argtypes = [ct.c_void_p]
 libconviqt.conviqt_beam_mmax.restype = ct.c_int
 libconviqt.conviqt_beam_mmax.argtypes = [ct.c_void_p]
 
+libconviqt.conviqt_beam_normalize.restype = ct.c_double
+libconviqt.conviqt_beam_normalize.argtypes = [ct.c_void_p]
+
 # Sky functions
 
 libconviqt.conviqt_sky_new.restype = ct.c_void_p

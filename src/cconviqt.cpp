@@ -54,6 +54,15 @@ extern "C" {
         }
     }
 
+    double conviqt_beam_normalize(void *ptr) {
+        try {
+            conviqt::beam *ref = reinterpret_cast< conviqt::beam * >(ptr);
+            return ref->normalize();
+        } catch (...) {
+            return -1;
+        }
+    }
+
     void *conviqt_sky_new() { return new(std::nothrow) conviqt::sky; }
 
     int conviqt_sky_del(void *ptr) {

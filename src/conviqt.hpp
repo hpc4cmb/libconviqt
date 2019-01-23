@@ -40,6 +40,9 @@ namespace conviqt {
 
 class beam {
 public :
+    beam() {}
+    beam(long beamlmax, long beammmax, bool pol,
+         std::string infile_beam, MPI_Comm comm);
     int read(long beamlmax, long beammmax, bool pol,
              std::string infile_beam,
              MPI_Comm comm=MPI_COMM_WORLD);
@@ -48,6 +51,7 @@ public :
     Alm< xcomplex<float> > & blmC(void);
     int get_lmax(void) { return lmax; }
     int get_mmax(void) { return mmax; }
+    double normalize(void);
 private :
     Alm< xcomplex<float> > blmT_, blmG_, blmC_;
     long lmax, mmax;
@@ -57,6 +61,11 @@ private :
 
 class sky {
 public :
+    sky() {}
+    sky(long skylmax, bool pol,
+        std::string infile_sky,
+        double fwhm_deconv_sky,
+        MPI_Comm comm);
     int read(long skylmax, bool pol,
              std::string infile_sky,
              double fwhm_deconv_sky=0,

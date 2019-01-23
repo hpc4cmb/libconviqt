@@ -21,6 +21,8 @@ extern "C" {
 
   int conviqt_beam_mmax(void *ptr);
 
+  double conviqt_beam_normalize(void *ptr);
+
   // Sky
 
   void *conviqt_sky_new();

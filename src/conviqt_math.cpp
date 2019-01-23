@@ -53,6 +53,39 @@
 
 namespace conviqt {
 
+beam::beam(long beamlmax, long beammmax, bool pol,
+           std::string infile_beam,
+           MPI_Comm comm=MPI_COMM_WORLD) {
+    read(beamlmax, beammmax, pol, infile_beam, comm);
+}
+
+double beam::normalize() {
+    /*
+      Scale the beam expansion to integrate to 0.5 over the sphere
+    */
+    double scale = 0;
+    if (blmT_.Lmax() >= 0) {
+        double b00 = blmT_(0, 0).re;
+        double current_norm = 2 * b00 / sqrt(1 / pi);
+        scale = 0.5 / current_norm;
+        if (CMULT_VERBOSITY > 1) {
+            std::cerr << "Normalizing beam from " << current_norm << " to 0.5 with "
+                      << scale << std::endl;
+        }
+        blmT_.Scale(scale);
+        if (pol) {
+            blmG_.Scale(scale);
+            blmC_.Scale(scale);
+        }
+    }
+    return scale;
+}
+
+sky::sky(long skylmax, bool pol, std::string infile_sky, double fwhm_deconv_sky=0,
+         MPI_Comm comm=MPI_COMM_WORLD) {
+    read(skylmax, pol, infile_sky, fwhm_deconv_sky, comm);
+}
+
 void sky::remove_monopole(void) {
   if (slmT_.Lmax() >= 0) {
     slmT_(0, 0) = 0;
