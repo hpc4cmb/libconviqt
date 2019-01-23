@@ -150,6 +150,8 @@ convolver::convolver(sky *s, beam *b, detector *d, bool pol,
     n_alltoall = 0;
     t_sort = 0;
     n_sort = 0;
+    t_fillingBetaSeg = 0;
+    n_fillingBetaSeg = 0;
     t_todRedistribution5cm = 0;
     n_todRedistribution5cm = 0;
     t_distribute_colatitudes = 0;
@@ -325,6 +327,8 @@ void convolver::fillingBetaSeg(levels::arr<double> &pntarr,
       process to all other processes.  The counts are recorded in inBetaSeg
     */
 
+    double tstart = mpiMgr.Wtime();
+    ++n_fillingBetaSeg;
     if (CMULT_VERBOSITY > 1) {
         std::cerr << corenum << " : Entering fillingBetaSeg" << std::endl;
     }
@@ -332,6 +336,7 @@ void convolver::fillingBetaSeg(levels::arr<double> &pntarr,
     inBetaSeg.alloc(cores);
     inBetaSeg.fill(0);
 
+    int corenum = 0;
     for (long ii = 0; ii < arrsize; ++ii) {
         double theta = pntarr[5 * ii + 1];
         if (theta >= halfpi) {
@@ -339,7 +344,7 @@ void convolver::fillingBetaSeg(levels::arr<double> &pntarr,
         }
         // Initialize corenum to a rough estimate of which task
         // should own this colatitude ..
-        int corenum = theta / ratiodeltas;
+        // corenum = theta / ratiodeltas;
         // .. and then perform a linear search to find the process
         // that owns it:
         //   corethetaarr[corenum] < theta < corethetaarr[corenum + 1]
@@ -356,6 +361,8 @@ void convolver::fillingBetaSeg(levels::arr<double> &pntarr,
     if (CMULT_VERBOSITY > 1) {
         std::cerr << corenum << " : Leaving fillingBetaSeg" << std::endl;
     }
+
+    t_fillingBetaSeg += mpiMgr.Wtime() - tstart;
 }
 
 
@@ -433,6 +440,7 @@ void convolver::todRedistribution5cm(levels::arr<double> pntarr,
         pntarr2.fill(0);
         long offset1 = 0;
         levels::arr<int> offset2(inOffset);
+        int corenum = 0;
         for (long ii = 0; ii < totsize; ++ii) {
             double theta = pntarr[5 * ii + 1];
             if (theta < 0 || theta > pi) {
@@ -442,7 +450,7 @@ void convolver::todRedistribution5cm(levels::arr<double> pntarr,
             if (theta >= halfpi) {
                 theta = pi - theta;
             }
-            int corenum = theta / ratiodeltas;
+            // corenum = theta / ratiodeltas;
             if (theta >= corethetaarr[corenum]) {
                 ratiobetacalcgreatercm(corenum, theta, corethetaarr);
             } else {
@@ -1656,6 +1664,8 @@ void convolver::report_timing() {
     timing_line(std::string("convolve"), t_convolve, n_convolve);
     timing_line(std::string("    distribute_colatitudes"),
                 t_distribute_colatitudes, n_distribute_colatitudes);
+    timing_line(std::string("    fillingBetaSeg"),
+                t_fillingBetaSeg, n_fillingBetaSeg);
     timing_line(std::string("    todRedistribution5cm"),
                 t_todRedistribution5cm, n_todRedistribution5cm);
     timing_line(std::string("    todgen"), t_todgen, n_todgen);

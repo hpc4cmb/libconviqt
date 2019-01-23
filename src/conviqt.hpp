@@ -157,7 +157,7 @@ private :
         t_wigner_init, t_wigner_prepare,
         t_alltoall, t_todRedistribution5cm,
         t_distribute_colatitudes, t_conviqt_hemiscm_pol,
-        t_alltoall_datacube, t_sort;
+        t_alltoall_datacube, t_sort, t_fillingBetaSeg;
 
     long n_convolve, n_todgen, n_arrFillingcm, n_interpolTOD,
         n_itheta0SetUp, n_ithetacalc, n_conviqt_tod_loop,
@@ -165,7 +165,7 @@ private :
         n_wigner_init, n_wigner_prepare,
         n_alltoall, n_todRedistribution5cm,
         n_distribute_colatitudes, n_conviqt_hemiscm_pol,
-        n_alltoall_datacube, n_sort;
+        n_alltoall_datacube, n_sort, n_fillingBetaSeg;
 
     void weight_ncm_initialize();
     void weight_ncm(double x, std::vector<double> &wgt);
