@@ -155,6 +155,7 @@ libconviqt.conviqt_convolver_new.argtypes = [
     ct.c_long,
     ct.c_long,
     ct.c_long,
+    ct.c_int,
     MPI_Comm,
 ]
 
@@ -164,6 +165,7 @@ libconviqt.conviqt_convolver_convolve.argtypes = [ct.c_void_p, ct.c_void_p, ct.c
 libconviqt.conviqt_convolver_del.restype = ct.c_int
 libconviqt.conviqt_convolver_del.argtypes = [ct.c_void_p]
 
+verbosity = 3
 
 lmax = 32
 beamlmax = lmax
@@ -255,10 +257,10 @@ for i in range(10):
 print("Creating convolver")
 
 convolver = libconviqt.conviqt_convolver_new(
-    sky_auto, beam_auto, detector, pol, lmax, beammmax, order, comm
+    sky_auto, beam_auto, detector, pol, lmax, beammmax, order, verbosity, comm
 )
 convolver_auto = libconviqt.conviqt_convolver_new(
-    sky, beam, detector, pol, -1, -1, order, comm
+    sky, beam, detector, pol, -1, -1, order, verbosity, comm
 )
 if convolver == 0:
     raise Exception("Failed to instantiate convolver")

@@ -29,12 +29,12 @@ int main(int argc, char **argv) {
   double *ppnt;
   void *cnv;
 
-  long lmax=32; // default 5000
-  long beamlmax=lmax;
-  long beammmax=4; // default 14;
+  long lmax = 32; // default 5000
+  long beamlmax = lmax;
+  long beammmax = 4; // default 14;
   char pol;
   long ipol;
-  double fwhm=4.0;
+  double fwhm = 4.0;
   char *beamfile = "../data/mb_lfi_30_27_x_rescaled.alm";
   char *skyfile = "../data/slm.fits";
   double epsilon = 1.32495160e-04;
@@ -42,12 +42,13 @@ int main(int argc, char **argv) {
   long ntheta = 3;
   long nphi = 3;
   long npsi = 3;
-  long nsamp = ntheta*nphi*npsi;
+  long nsamp = ntheta * nphi * npsi;
   long row;
   long itheta, iphi, ipsi;
   double theta, phi, psi;
 
-  long order=3; // 5
+  long order = 3; // 5
+  int verbosity = 3;
 
   char calibrate=1;
 
@@ -123,7 +124,7 @@ int main(int argc, char **argv) {
       printf("%li : %f %f %f %f %f\n", row, ppnt[row*5+0], ppnt[row*5+1], ppnt[row*5+2], ppnt[row*5+3], ppnt[row*5+4]);
     }
 
-    cnv = conviqt_convolver_new(sky, beam, det, pol, lmax, beammmax, order, comm);
+    cnv = conviqt_convolver_new(sky, beam, det, pol, lmax, beammmax, order, verbosity, comm);
 
     conviqt_convolver_convolve(cnv, pnt, calibrate);
 

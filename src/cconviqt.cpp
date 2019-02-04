@@ -211,7 +211,7 @@ extern "C" {
 
     void *conviqt_convolver_new(void *skyptr, void *beamptr, void *detptr,
                                 char pol, long lmax, long beammmax,
-                                long order, MPI_Comm comm) {
+                                long order, int verbosity, MPI_Comm comm) {
 
 #ifdef DEBUG
         int size, rank, err;
@@ -248,7 +248,8 @@ extern "C" {
         conviqt::detector *detref = reinterpret_cast< conviqt::detector * >(detptr);
 
         return new(std::nothrow) conviqt::convolver(skyref, beamref, detref, pol,
-                                                    lmax, beammmax, order, comm);
+                                                    lmax, beammmax, order,
+                                                    verbosity, comm);
     }
 
     int conviqt_convolver_del(void *ptr) {

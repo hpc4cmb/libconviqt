@@ -15,7 +15,7 @@ int beam::read(long beamlmax, long beammmax, bool beampol,
     int rank;
     MPI_Comm_rank(comm, &rank);
 
-    if (CMULT_VERBOSITY > 1) {
+    if (verbosity > 5) {
         std::cout << "Reading " << infile_beam << " on task = " << rank << std::endl;
     }
 
@@ -65,7 +65,7 @@ int beam::read(long beamlmax, long beammmax, bool beampol,
         } else {
             read_Alm_from_fits(infile_beam, blmT_, lmax, mmax);
         }
-        if (CMULT_VERBOSITY > 1) {
+        if (verbosity > 5) {
             std::cout << "Done reading beam alms on task = " << rank << std::endl;
         }
     }
@@ -108,7 +108,7 @@ int sky::read(long skylmax, bool skypol,
     int rank;
     MPI_Comm_rank(comm, &rank);
 
-    if (CMULT_VERBOSITY > 1) {
+    if (verbosity > 5) {
         std::cout << "Reading " << infile_sky << " on task = " << rank << std::endl;
     }
 
@@ -155,7 +155,7 @@ int sky::read(long skylmax, bool skypol,
         } else {
             read_Alm_from_fits (infile_sky, slmT_, lmax, mmax);
         }
-        if (CMULT_VERBOSITY > 1) {
+        if (verbosity > 5) {
             std::cout << "Done reading sky alms on task = " << rank << std::endl;
         }
     }

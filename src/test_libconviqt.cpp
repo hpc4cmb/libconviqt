@@ -33,6 +33,7 @@ int main(int argc, char **argv) {
     if (MPI_Comm_rank(comm, &rank)) throw std::runtime_error("ERROR: Failed to get MPI rank");
 
     std::cout << std::setprecision(16);
+    int verbosity=1;
 
     beam b;
     sky s;
@@ -88,7 +89,7 @@ int main(int argc, char **argv) {
 
         std::cout << "Instantiating convolver." << std::endl;
 
-        convolver cnv(&s, &b, &d, pol, lmax, beammmax, order, comm);
+        convolver cnv(&s, &b, &d, pol, lmax, beammmax, order, verbosity, comm);
 
         std::cout << "Convolving." << std::endl;
 

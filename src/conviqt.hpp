@@ -27,9 +27,6 @@
 // conv_acc are ignored)
 #define conv_acc 1.e-30
 
-// convolver verbosity
-#define CMULT_VERBOSITY 1
-
 // The declarations go here
 
 #define __CONVIQT_HPP__
@@ -56,6 +53,7 @@ private :
     Alm< xcomplex<float> > blmT_, blmG_, blmC_;
     long lmax, mmax;
     bool pol;
+    int verbosity = 0;
     std::string fname;
 };
 
@@ -81,6 +79,7 @@ private :
     long lmax;
     bool pol;
     double fwhm_deconv;
+    int verbosity = 0;
     std::string fname;
 };
 
@@ -113,6 +112,7 @@ private :
 
     std::string det_id_;
     double epsilon_;
+    int verbosity = 0;
 
 };
 
@@ -122,13 +122,16 @@ public :
 
     convolver(sky *s, beam *b, detector *d, bool pol=false,
               long lmax=5000, long beammax=14,
-              long order=5, MPI_Comm comm=MPI_COMM_WORLD);
+              long order=5, int verbosity=1,
+              MPI_Comm comm=MPI_COMM_WORLD);
     int convolve(pointing & pnt, bool calibrate=true);
     int set_sky(sky *s);
     int set_beam(beam *b);
     int set_detector(detector *d);
 
 private :
+
+    int verbosity = 0;
 
     // Variables related to the gridding of the data cube
 

@@ -68,7 +68,7 @@ double beam::normalize() {
         double b00 = blmT_(0, 0).re;
         double current_norm = 2 * b00 / sqrt(1 / pi);
         scale = 0.5 / current_norm;
-        if (CMULT_VERBOSITY > 1) {
+        if (verbosity > 1) {
             std::cerr << "Normalizing beam from " << current_norm << " to 0.5 with "
                       << scale << std::endl;
         }
@@ -104,8 +104,9 @@ void sky::remove_dipole(void) {
 
 convolver::convolver(sky *s, beam *b, detector *d, bool pol,
                      long lmax, long beammmax,
-                     long order, MPI_Comm comm)
-    : s(s), b(b), d(d), pol(pol), lmax(lmax), beammmax(beammmax), order(order) {
+                     long order, int verbosity, MPI_Comm comm)
+    : s(s), b(b), d(d), pol(pol), lmax(lmax), beammmax(beammmax), order(order),
+      verbosity(verbosity) {
     mpiMgr = MPI_Manager(comm);
     cores = mpiMgr.num_ranks();
     corenum = mpiMgr.rank();
@@ -329,7 +330,7 @@ void convolver::fillingBetaSeg(levels::arr<double> &pntarr,
 
     double tstart = mpiMgr.Wtime();
     ++n_fillingBetaSeg;
-    if (CMULT_VERBOSITY > 1) {
+    if (verbosity > 5) {
         std::cerr << corenum << " : Entering fillingBetaSeg" << std::endl;
     }
 
@@ -358,7 +359,7 @@ void convolver::fillingBetaSeg(levels::arr<double> &pntarr,
         inBetaSeg[corenum] += 5; // Each entry comprises 5 double elements
     }
 
-    if (CMULT_VERBOSITY > 1) {
+    if (verbosity > 5) {
         std::cerr << corenum << " : Leaving fillingBetaSeg" << std::endl;
     }
 
@@ -404,7 +405,7 @@ void convolver::todRedistribution5cm(levels::arr<double> pntarr,
      */
     double tstart = mpiMgr.Wtime();
     ++n_todRedistribution5cm;
-    if (CMULT_VERBOSITY > 1) {
+    if (verbosity > 5) {
         std::cerr << "Entered todRedistribution5cm" << std::endl;
     }
 
@@ -462,7 +463,7 @@ void convolver::todRedistribution5cm(levels::arr<double> pntarr,
 	}
     }
 
-    if (CMULT_VERBOSITY > 1) {
+    if (verbosity > 5) {
         std::cerr << "Leaving todRedistribution5cm" << std::endl;
     }
 
@@ -496,7 +497,7 @@ void convolver::todgen(const long ntod1, const long ntod2,
         todTest_arr2.fill(0);
     }
 
-    if (CMULT_VERBOSITY > 1) {
+    if (verbosity > 5) {
         std::cerr << "corenum = " << corenum << "  order = " << order
                   << "  ntod1 = " << ntod1 << "  ntod2 = " << ntod2 << std::endl;
     }
@@ -644,7 +645,7 @@ void convolver::conviqt_hemiscm(levels::arr3<xcomplex<double> > &tod1,
       This unpolarized version duplicates most of conviqt_hemiscm_pol
       but avoids conditionals in performance-critical code.
      */
-    if (CMULT_VERBOSITY > 1) {
+    if (verbosity > 5) {
         mpiMgr.barrier();
         std::cerr << corenum << " : Entering conviqt_hemiscm" << std::endl;
     }
@@ -792,7 +793,7 @@ void convolver::conviqt_hemiscm(levels::arr3<xcomplex<double> > &tod1,
 
     t_conviqt_hemiscm += mpiMgr.Wtime() - tstart;
 
-    if (CMULT_VERBOSITY > 1) {
+    if (verbosity > 5) {
         std::cerr << corenum << " : Exiting conviqt_hemiscm" << std::endl;
     }
 }
@@ -896,7 +897,7 @@ void convolver::conviqt_hemiscm_pol(levels::arr3< xcomplex<double> > &tod1,
     /*
       Build the beam-convolved theta/phi/psi data cube
      */
-    if (CMULT_VERBOSITY > 1) {
+    if (verbosity > 5) {
         mpiMgr.barrier();
         std::cerr << corenum << " : Entering conviqt_hemiscm_pol" << std::endl;
     }
@@ -1052,7 +1053,7 @@ void convolver::conviqt_hemiscm_pol(levels::arr3< xcomplex<double> > &tod1,
 
     t_conviqt_hemiscm_pol += mpiMgr.Wtime() - tstart;
 
-    if (CMULT_VERBOSITY > 1) {
+    if (verbosity > 5) {
         std::cerr << corenum << " : Exiting conviqt_hemiscm_pol" << std::endl;
     }
 }
@@ -1064,7 +1065,7 @@ void convolver::alltoall_datacube(std::vector<char> &need_itheta_core,
                                   levels::arr3< xcomplex<double> > &my_tod,
                                   levels::arr3< xcomplex<double> > &tod,
                                   const long ithetaoffset, const long NThetaIndex) {
-    if (CMULT_VERBOSITY > 1) {
+    if (verbosity > 5) {
         std::cerr << corenum << " : Entering alltoall_datacube" << std::endl;
     }
     double tstart = mpiMgr.Wtime();
@@ -1167,7 +1168,7 @@ void convolver::alltoall_datacube(std::vector<char> &need_itheta_core,
 
     t_alltoall_datacube += mpiMgr.Wtime() - tstart;
 
-    if (CMULT_VERBOSITY > 1) {
+    if (verbosity > 5) {
         std::cerr << corenum << " : Exiting alltoall_datacube" << std::endl;
     }
 }
@@ -1180,7 +1181,7 @@ void convolver::todAnnulus(levels::arr3<xcomplex<double> > &tod,
                            levels::arr<double> &cs0,
                            levels::arr<double> &sn0,
                            long NThetaIndex) {
-    if (CMULT_VERBOSITY > 1) {
+    if (verbosity > 5) {
         std::cerr << corenum << " : Entering todAnnulus" << std::endl;
     }
     double tstart = mpiMgr.Wtime();
@@ -1260,7 +1261,7 @@ void convolver::todAnnulus(levels::arr3<xcomplex<double> > &tod,
 
     t_todAnnulus += mpiMgr.Wtime() - tstart;
 
-    if (CMULT_VERBOSITY > 1) {
+    if (verbosity > 5) {
         std::cerr << corenum << " : Exiting todAnnulus" << std::endl;
     }
 }
@@ -1274,7 +1275,7 @@ void convolver::interpolTOD(levels::arr<double> &outpntarr1,
     double tstart = mpiMgr.Wtime();
     ++n_interpolTOD;
 
-    if (CMULT_VERBOSITY > 1) {
+    if (verbosity > 5) {
         std::cerr << corenum << " : Entering interpolTOD" << std::endl;
     }
 
@@ -1297,7 +1298,7 @@ void convolver::interpolTOD(levels::arr<double> &outpntarr1,
         ithetaoffset2 = itheta0_2[ntod2 - 1];
     }
 
-    if (CMULT_VERBOSITY > 1) {
+    if (verbosity > 5) {
         for (int core = 0; core < cores; ++core) {
             if (core == corenum) {
                 std::cerr << corenum << " :"
@@ -1333,7 +1334,7 @@ void convolver::interpolTOD(levels::arr<double> &outpntarr1,
                          thetaIndex);
     }
 
-    if (CMULT_VERBOSITY > 1) {
+    if (verbosity > 5) {
         std::cerr << corenum << " : Exiting interpolTOD" << std::endl;
     }
 
@@ -1350,7 +1351,7 @@ void convolver::conviqt_tod_loop(levels::arr<long> &lowerIndex,
                                  const long ntod,
                                  levels::arr<double> &TODValue,
                                  const long lat) {
-    if (CMULT_VERBOSITY > 1) {
+    if (verbosity > 5) {
         std::cerr << corenum << " : Entering conviqt_tod_loop" << std::endl;
     }
 
@@ -1429,7 +1430,7 @@ void convolver::conviqt_tod_loop(levels::arr<long> &lowerIndex,
     } // end parallel region
 
     t_conviqt_tod_loop += mpiMgr.Wtime() - tstart;
-    if (CMULT_VERBOSITY > 1) {
+    if (verbosity > 5) {
         std::cerr << corenum << " : Exiting conviqt_tod_loop" << std::endl;
     }
 }
@@ -1442,7 +1443,7 @@ void convolver::arrFillingcm(long ntod,
     /*
       Copy North or South hemisphere data into a separate pntarr
      */
-    if (CMULT_VERBOSITY > 1) {
+    if (verbosity > 5) {
         std::cerr << corenum << " : Entering arrFillingcm" << std::endl;
     }
     double tstart = mpiMgr.Wtime();
@@ -1462,7 +1463,7 @@ void convolver::arrFillingcm(long ntod,
     hpsort_arrTheta(outpntarrx);
 
     t_arrFillingcm += mpiMgr.Wtime() - tstart;
-    if (CMULT_VERBOSITY > 1) {
+    if (verbosity > 5) {
         std::cerr << corenum << " : Exiting arrFillingcm" << std::endl;
     }
 }
@@ -1472,7 +1473,7 @@ int convolver::convolve(pointing &pntarr, bool calibrate) {
 
     mpiMgr.barrier();
 
-    if (CMULT_VERBOSITY > 1) {
+    if (verbosity > 0) {
         std::cerr << corenum << " : Convolving : pol = " << pol
                   << " lmax = " << lmax
                   << " beammmax = " << beammmax
@@ -1652,8 +1653,9 @@ int convolver::convolve(pointing &pntarr, bool calibrate) {
     }
 
     t_convolve += mpiMgr.Wtime() - tstart;
-    //if (CMULT_VERBOSITY > 1)
-    report_timing();
+    if (verbosity > 0) {
+        report_timing();
+    }
 
     return 0;
 }
