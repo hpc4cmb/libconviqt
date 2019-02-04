@@ -1473,7 +1473,7 @@ int convolver::convolve(pointing &pntarr, bool calibrate) {
 
     mpiMgr.barrier();
 
-    if (verbosity > 0) {
+    if (verbosity > 5 or (corenum == 0 and verbosity > 0)) {
         std::cerr << corenum << " : Convolving : pol = " << pol
                   << " lmax = " << lmax
                   << " beammmax = " << beammmax
