@@ -4,1329 +4,1728 @@
 
 #include <cstring>
 
+#include "omp.h"
+
+/*
+  int convolve()
+      void fillingBetaSeg()
+          void ratiobetacalcsmallercm()
+          void ratiobetacalcgreatercm()
+      void todRedistribution5cm()
+          void ratiobetacalcsmallercm()
+          void ratiobetacalcgreatercm()
+      mpiMgr.all2allv()
+      hpsort_arrTheta()
+
+      void todgen()
+          void arrFillingcm()
+          void interpolTOD()
+              void itheta0SetUp()
+                  void ithetacalc()
+              EITHER
+              void conviqt_hemiscm()
+              OR
+              void conviqt_hemiscm_pol()
+                  get_latitude_tables()
+                  wignergen()
+                  wignergen.prepare()
+                  wignergen.calc()
+                  void todAnnulus()
+                  alltoall_datacube()
+              void conviqt_tod_loop()
+                  void weight_ncm()
+
+      hpsort_DL()
+      hpsort_arrTOD()
+      mpiMgr.all2allv()
+      hpsort_arrTime
+      hpsort_DDcm()
+      mpiMgr.all2allv()
+      hpsort_DDcm()
+
+  int set_sky()
+  int set_beam()
+  int set_detector()
+
+ */
+
 // This file will contain the actual operations on the sky, no I/O
 
 namespace conviqt {
 
-void sky::remove_monopole( void ) {
+beam::beam(long beamlmax, long beammmax, bool pol,
+           std::string infile_beam,
+           MPI_Comm comm=MPI_COMM_WORLD) {
+    read(beamlmax, beammmax, pol, infile_beam, comm);
+}
+
+double beam::normalize() {
+    /*
+      Scale the beam expansion to integrate to 0.5 over the sphere
+    */
+    double scale = 0;
+    if (blmT_.Lmax() >= 0) {
+        double b00 = blmT_(0, 0).re;
+        double current_norm = 2 * b00 / sqrt(1 / pi);
+        scale = 0.5 / current_norm;
+        if (verbosity > 1) {
+            std::cerr << "Normalizing beam from " << current_norm << " to 0.5 with "
+                      << scale << std::endl;
+        }
+        blmT_.Scale(scale);
+        if (pol) {
+            blmG_.Scale(scale);
+            blmC_.Scale(scale);
+        }
+    }
+    return scale;
+}
+
+sky::sky(long skylmax, bool pol, std::string infile_sky, double fwhm_deconv_sky=0,
+         MPI_Comm comm=MPI_COMM_WORLD) {
+    read(skylmax, pol, infile_sky, fwhm_deconv_sky, comm);
+}
+
+void sky::remove_monopole(void) {
   if (slmT_.Lmax() >= 0) {
-    slmT_(0,0) = 0;
+    slmT_(0, 0) = 0;
   }
 }
 
-void sky::remove_dipole( void ) {
+void sky::remove_dipole(void) {
   if (slmT_.Lmax() >= 1) {
-    slmT_(1,0) = 0;
+    slmT_(1, 0) = 0;
     if (slmT_.Mmax() >= 1) {
-      slmT_(1,1) = 0;
+      slmT_(1, 1) = 0;
     }
   }
 }
 
-convolver::convolver( sky *s, beam *b, detector *d, bool pol, long lmax, long beammmax, long order, MPI_Comm comm ) : s(s), b(b), d(d), pol(pol), lmax(lmax), beammmax(beammmax), order(order) {
-  mpiMgr = MPI_Manager( comm );
-  cores = mpiMgr.num_ranks();
-  corenum = mpiMgr.rank();
+
+convolver::convolver(sky *s, beam *b, detector *d, bool pol,
+                     long lmax, long beammmax,
+                     long order, int verbosity, MPI_Comm comm)
+    : s(s), b(b), d(d), pol(pol), lmax(lmax), beammmax(beammmax), order(order),
+      verbosity(verbosity) {
+    mpiMgr = MPI_Manager(comm);
+    cores = mpiMgr.num_ranks();
+    corenum = mpiMgr.rank();
+
+    const int lmax_sky = s->get_lmax();
+    const int lmax_beam = b->get_lmax();
+    if (lmax < 0) {
+        this->lmax = std::max(lmax_beam, lmax_sky);
+    } else if (lmax > lmax_sky || lmax > lmax_beam) {
+        throw std::runtime_error("Convolver lmax exceeds input expansion order.");
+    }
+
+    const int mmax_beam = b->get_mmax();
+    if (beammmax < 0) {
+        this->beammmax = mmax_beam;
+    } else if (beammmax > mmax_beam) {
+        throw std::runtime_error("Convolver mmax exceeds input expansion order.");
+    }
+
+    // data cube gridding
+
+    npoints = order + 1;
+    ioffset = order / 2;
+    phi0 = halfpi;
+    npsi = this->beammmax + 1;
+    nphi = 2 * this->lmax + 1;
+    dphi = 2 * pi / nphi;
+    inv_delta_phi = 1. / dphi;
+    phioffset = phi0 / dphi;
+    halfmargin = npoints / 2 + 1;
+    margin = 2 * halfmargin;
+    ntheta = this->lmax + 1 + margin;
+    dtheta = -pi / (ntheta - margin);
+    theta0 = pi - halfmargin * dtheta;
+    inv_delta_theta = 1 / dtheta;
+
+    // profiling
+
+    t_convolve = 0;
+    n_convolve = 0;
+    t_alltoall = 0;
+    n_alltoall = 0;
+    t_sort = 0;
+    n_sort = 0;
+    t_fillingBetaSeg = 0;
+    n_fillingBetaSeg = 0;
+    t_todRedistribution5cm = 0;
+    n_todRedistribution5cm = 0;
+    t_distribute_colatitudes = 0;
+    n_distribute_colatitudes = 0;
+
+    t_todgen = 0;
+    t_arrFillingcm = 0;
+    t_interpolTOD = 0;
+    t_itheta0SetUp = 0;
+    t_ithetacalc = 0;
+    t_conviqt_tod_loop = 0;
+    t_conviqt_hemiscm = 0;
+    t_todAnnulus = 0;
+    t_conviqt_hemiscm_pol = 0;
+    t_alltoall_datacube = 0;
+
+    n_todgen = 0;
+    n_arrFillingcm = 0;
+    n_interpolTOD = 0;
+    n_itheta0SetUp = 0;
+    n_ithetacalc = 0;
+    n_conviqt_tod_loop = 0;
+    n_conviqt_hemiscm = 0;
+    n_todAnnulus = 0;
+    n_conviqt_hemiscm_pol = 0;
+    n_alltoall_datacube = 0;
+
+    t_wigner_init = 0;
+    t_wigner_prepare = 0;
+
+    n_wigner_init = 0;
+    n_wigner_prepare = 0;
 }
 
-int convolver::set_sky( sky *s ) {
+
+int convolver::set_sky(sky *s) {
 
   this->s = s;
-  
+
   return 0;
 }
 
-int convolver::set_beam( beam *b ) {
+int convolver::set_beam(beam *b) {
 
   this->b = b;
-  
+
   return 0;
 }
 
-int convolver::set_detector( detector *d ) {
+int convolver::set_detector(detector *d) {
 
   this->d = d;
-  
+
   return 0;
 }
 
-  
-void convolver::weight_ncm( double x, levels::arr<double> &wgt ) {
-  unsigned int npoints = order + 1;
 
-  if ( base_wgt.size() == 0 ) {
-    // Initialize base_wgt only when needed
-    base_wgt.resize(npoints,1);
-    for (int m=0; m<(int)npoints; ++m) {
-      for (int n=0; n<m; ++n) base_wgt[m] *= m-n;	
-      for (int n=m+1; n<(int)npoints; ++n) base_wgt[m] *= m-n;	
-    }
-    for (int m=0; m<(int)npoints; ++m) base_wgt[m] = 1./base_wgt[m];
-  } else if ( base_wgt.size() != npoints ) {
-    throw std::runtime_error( "base_wgt changed dimensions" );
-  }
-
-  std::vector<double> temp_wgt(base_wgt);
-  double mul1=x;
-  for (int m=1; m<(int)npoints; ++m) {
-    temp_wgt[m]*=mul1;
-    mul1*=x-m;
-  }
-
-  double mul2=x-npoints+1;
-  for (int m=1; m<(int)npoints; ++m) {
-    temp_wgt[npoints-m-1]*=mul2;
-    mul2*=x-npoints+m+1;
-  }
-  
-  memcpy( &(wgt[0]), &(temp_wgt[0]), sizeof(double)*npoints );
-}
-
-  
-void convolver::weight_ncm( double x, std::vector<double> &wgt ) {
-  unsigned int npoints = order + 1;
-
-  if ( base_wgt.size() == 0 ) {
-    // Initialize base_wgt only when needed
-    base_wgt.resize(npoints,1);
-    for (int m=0; m<(int)npoints; ++m) {
-      for (int n=0; n<m; ++n) base_wgt[m] *= m-n;	
-      for (int n=m+1; n<(int)npoints; ++n) base_wgt[m] *= m-n;	
-    }
-    for (int m=0; m<(int)npoints; ++m) base_wgt[m] = 1./base_wgt[m];
-  } else if ( base_wgt.size() != npoints ) {
-    throw std::runtime_error( "base_wgt changed dimensions" );
-  }
-
-  std::vector<double> temp_wgt(base_wgt);
-  double mul1=x;
-  for (int m=1; m<(int)npoints; ++m) {
-    temp_wgt[m]*=mul1;
-    mul1*=x-m;
-  }
-  
-  double mul2=x-npoints+1;
-  for (int m=1; m<(int)npoints; ++m) {
-    temp_wgt[npoints-m-1]*=mul2;
-    mul2*=x-npoints+m+1;
-  }
-  
-  memcpy( &(wgt[0]), &(temp_wgt[0]), sizeof(double)*npoints );
-}
-
-
-void convolver::conviqt_tod_loop_read(levels::arr<long> &lowerIndex, levels::arr<long> &upperIndex, levels::arr2<xcomplex<double> > &TODAsym, long thetaIndex, long nphi, long npoints, levels::arr<double> &TODValue, levels::arr<int> &iphi0arr, levels::arr2<double> &sinweight, levels::arr2<double> &cosweight)
-{
-  for (int ii=lowerIndex[thetaIndex]; ii>=upperIndex[thetaIndex]; ii--)
-    for (int phiIndex=0; phiIndex<npoints; ++phiIndex)
-      {
-	long newphiIndex=iphi0arr[ii]+phiIndex;
-	if (newphiIndex>=nphi) newphiIndex-=nphi;
-	for (long psiIndex=0; psiIndex<=beammmax; psiIndex++) TODValue[ii]+=cosweight[ii][psiIndex]*TODAsym[newphiIndex][psiIndex].real() - sinweight[ii][psiIndex]*TODAsym[newphiIndex][psiIndex].imag();
-      }
-}
-
-
-void convolver::ithetacalc( levels::arr<long> &itheta0, levels::arr<double> &outpntarr, long ntod, double inv_delta_theta, double theta0, long ioffset, long ntheta, long npoints )
-{
-  for ( long ii=0; ii<ntod; ii++ )
-    {
-      double beta = outpntarr[5*ii+1]; // latitude
-      beta = ( beta > halfpi ) ? pi-beta : beta;
-      double frac = (beta-theta0)*inv_delta_theta;//Note that the larger the ii the smaller frac is and the smaller itheta0[ii] is.
-      itheta0[ii] = int (frac) - ioffset;//Note also that itheta0[ii] is always positive.
-      if ( itheta0[ii] > (ntheta-npoints) ) itheta0[ii] = ntheta - npoints;
-      if ( itheta0[ii] < 0 ) itheta0[ii] = 0;
+void convolver::weight_ncm_initialize() {
+    /*
+      Allocate and initialize base_wgt to be used in weight_ncm
+     */
+    if (base_wgt.size() == 0) {
+        // Initialize base_wgt only when needed
+        base_wgt.resize(npoints, 1);
+        for (int m = 0; m < npoints; ++m) {
+            for (int n = 0; n < m; ++n) {
+                base_wgt[m] *= m - n;
+            }
+            for (int n = m + 1; n < npoints; ++n) {
+                base_wgt[m] *= m - n;
+            }
+        }
+        for (int m = 0; m < npoints; ++m) {
+            base_wgt[m] = 1. / base_wgt[m];
+        }
+    } else if (base_wgt.size() != npoints) {
+        throw std::runtime_error("base_wgt changed dimensions");
     }
 }
 
 
-void convolver::ratiobetacalcgreatercm(long &ratiobeta, double theta, levels::arr<double> &corethetaarr)
-{
-  for (long ii=0; ii<cores; ii++)
-    {
-      if (ratiobeta+1>=cores) break;
-      if (theta<corethetaarr[ratiobeta+1]) break;
-      ratiobeta++;
+void convolver::weight_ncm(const double x, std::vector<double> &wgt) {
+    /*
+      Return the interpolation weights used in conviqt_tod_loop
+
+      This method is called from multiple threads at once
+    */
+    memcpy(&(wgt[0]), &(base_wgt[0]), sizeof(double) * npoints);
+
+    double mul1 = x;
+    for (int m = 1; m < npoints; ++m) {
+        wgt[m] *= mul1;
+        mul1 *= x - m;
+    }
+
+    double mul2 = x - npoints + 1;
+    const long loffset = npoints - 1;
+    const double doffset = x - npoints + 1;
+    for (int m = 1; m < npoints; ++m) {
+        wgt[loffset - m] *= mul2;
+        mul2 *= doffset + m;
     }
 }
 
 
-void convolver::ratiobetacalcsmallercm(long &ratiobeta, double theta, levels::arr<double> &corethetaarr)
-{
-  for (long ii=0; ii<100000; ii++)
-    {
-      if (ratiobeta<0) break;
-      if (theta>corethetaarr[ratiobeta]) break;
-      ratiobeta--;
-    }
-}
+void convolver::distribute_colatitudes(levels::arr<double> &pntarr,
+                                       const long totsize,
+                                       levels::arr<double> &corethetaarr) {
+    /*
+      Distribute the latitudes between 0..90 degrees between
+      processes. 90..180 deg follow from symmetry.  The lower limits are
+      stored in corethetaarr.
+     */
 
-void convolver::thetaDeltaThetacm(double thetaini, int corenum, double &theta, double &deltatheta)
-{
-  if (corenum == 0)
-    {
-      theta=0.;
-      deltatheta = thetaini;
-    }
-  else if (corenum == cores-1)
-    {
-      deltatheta = 1./cores;
-      theta = thetaini - deltatheta;
-    }
-  else
-    {
-      double a = -cos(thetaini)/2.;
-      double b = -sin(thetaini) + thetaini*cos(thetaini);
-      double c = thetaini*sin(thetaini) - cos(thetaini)*thetaini*thetaini/2. - 1./cores;
-      theta = (-b-sqrt(b*b-4.*a*c))/(2.*a);
-      deltatheta = thetaini - theta;
-    }
-}
+    double tstart = mpiMgr.Wtime();
+    ++n_distribute_colatitudes;
 
+    long totsize_tot = 0;
+    mpiMgr.allreduceRaw<long>(&totsize, &totsize_tot, 1, mpiMgr.Sum);
 
-void convolver::deltaTheta2( long iival, double thetaini, levels::arr<double> &dbeta )
-{
-  dbeta.alloc(iival+1);
-  double dy = (1.-thetaini)/2.;
-  double yshift = -0.7;
-  double theta2 = pi - abs(asin(1-dy)) + yshift;
-  double theta1 = pi - abs(asin(sin(theta2) - thetaini));
-  double dt = (theta2 - theta1)/(iival + 1.);
-  double dbeta0 = sin(theta2);
-  
-  if ( CMULT_VERBOSITY > 1 ) std::cout << "dy = " << dy << "   theta1 = " << theta1 << "   theta2 = " << theta2 << "   dbeta0 = " << dbeta0 << "  dt = " << dt << "   iival = " << iival <<"  sin(theta2-(iival+1-iival)*dt) = " << sin(theta2-(iival+1-iival)*dt) <<"  sin(theta2-(iival+1-(iival-1) )*dt) = " << sin(theta2-(iival+1-(iival-1) )*dt) << std::endl;
-  
-  for ( long ii=iival; ii>=0; ii-- )
-    {
-      dbeta[ii] = dbeta0 - sin(theta2 - (iival + 1 - ii)*dt);
-      dbeta0 = sin(theta2 - (iival + 1 - ii)*dt);
-    }
-}
+    // Build a latitude hit map
 
-
-void convolver::fillingBetaSeg ( levels::arr<double> & pntarr, long & arrsize, double ratiodeltas, levels::arr<double> &corethetaarr, levels::arr<int> &inBetaSeg)
-{
-  if ( CMULT_VERBOSITY > 1 ) std::cout << "Entered fillingBetaSeg in core = " << corenum << std::endl;
-
-  for (long ii=0; ii<arrsize; ii++) 
-    {
-      double theta = pntarr[5*ii+1];
-      if ( theta >= halfpi ) theta = pi-theta;
-      long ratiobeta;
-      ratiobeta = theta/ratiodeltas;
-      if ( theta >= corethetaarr[ratiobeta] )
-        ratiobetacalcgreatercm( ratiobeta, theta, corethetaarr );
-      else
-        ratiobetacalcsmallercm( ratiobeta, theta, corethetaarr );
-      inBetaSeg[ratiobeta] += 5; // Each entry comprises 5 elements
+    long nbin = 100000;
+    double wbin = halfpi / nbin;
+    arr<int> my_hits(nbin, 0), hits(nbin, 0);
+    for (long ii = 0; ii < totsize; ++ii) {
+        double beta = pntarr[5 * ii + 1];
+        if (beta > halfpi) {
+            beta = pi - beta;
+        }
+        long ibin = beta / wbin;
+        ++my_hits[ibin];
     }
 
-  if ( CMULT_VERBOSITY > 1 ) std::cout << "Leaving fillingBetaSeg in core = " << corenum << std::endl;
+    mpiMgr.allreduce(my_hits, hits, mpiMgr.Sum);
+
+    long nhitleft = totsize_tot;
+
+    corethetaarr[0] = 0;
+    long ibin = -1;
+    for (int corenum = 1; corenum < cores; ++corenum) {
+        // Width of the bin is based on remaining latitude
+        // and samples, which ever we meet first
+        double divisor = cores - corenum + 1;
+        double nhit_target = nhitleft / divisor;
+        long bin_hit = 0;
+        while (ibin < nbin) {
+            ++ibin;
+            // Skip over isolatitudes that have no hits
+            if (hits[ibin] != 0) {
+                bin_hit += hits[ibin];
+                nhitleft -= hits[ibin];
+                if (bin_hit >= nhit_target) {
+                    break;
+                }
+            }
+        }
+        double theta = ibin * wbin;
+        corethetaarr[corenum] = theta;
+    }
+
+    t_distribute_colatitudes += mpiMgr.Wtime() - tstart;
 }
 
 
-void convolver::todRedistribution5cm ( levels::arr<double> pntarr, levels::arr<int> inBetaSeg, levels::arr<int> outBetaSeg, levels::arr<int> &inBetaSegAcc, levels::arr<int> &outBetaSegAcc, long &outBetaSegSize, levels::arr<double> &pntarr2, long totsize, levels::arr<int> &inOffset, levels::arr<int> &outOffset, double ratiodeltas, levels::arr<double> &corethetaarr )
-{
-  if ( CMULT_VERBOSITY > 1 ) std::cout << "Entered todRedistribution5cm" << std::endl;
-  
-  inBetaSegAcc.alloc(cores);
-  inBetaSegAcc.fill(0);
-  outBetaSegAcc.alloc(cores);
-  outBetaSegAcc.fill(0);
-  for ( long ii=0; ii<cores; ii++ )
-    for ( long jj=0; jj<=ii; jj++ )
-      {
-	inBetaSegAcc[ii] += inBetaSeg[jj];
-	outBetaSegAcc[ii] += outBetaSeg[jj];
-      }
-  outBetaSegSize = outBetaSegAcc[cores-1];
-  inOffset.alloc(cores);
-  inOffset.fill(0);
-  outOffset.alloc(cores);
-  outOffset.fill(0);
-  for ( long ii=1; ii<cores; ii++ )
-    {
-      outOffset[ii] = outBetaSegAcc[ii-1];
-      inOffset[ii] = inBetaSegAcc[ii-1];
+void convolver::fillingBetaSeg(levels::arr<double> &pntarr,
+                               const long arrsize,
+                               const double ratiodeltas,
+                               levels::arr<double> &corethetaarr,
+                               levels::arr<int> &inBetaSeg) {
+    /*
+      This method determines the number of doubles to send from this
+      process to all other processes.  The counts are recorded in inBetaSeg
+    */
+
+    double tstart = mpiMgr.Wtime();
+    ++n_fillingBetaSeg;
+    if (verbosity > 5) {
+        std::cerr << corenum << " : Entering fillingBetaSeg" << std::endl;
     }
-  if ( totsize > 0 )
-    {
-      try {
-        pntarr2.alloc(5*totsize);
-      } catch ( std::bad_alloc & e ) {
-        std::cerr << " todRedistribution5cm : Out of memory allocating " << (5*totsize)*8./1024/1024 << "MB for pntarr2" << std::endl;
+
+    inBetaSeg.alloc(cores);
+    inBetaSeg.fill(0);
+
+    int corenum = 0;
+    for (long ii = 0; ii < arrsize; ++ii) {
+        double theta = pntarr[5 * ii + 1];
+        if (theta >= halfpi) {
+            theta = pi - theta;
+        }
+        // Initialize corenum to a rough estimate of which task
+        // should own this colatitude ..
+        // corenum = theta / ratiodeltas;
+        // .. and then perform a linear search to find the process
+        // that owns it:
+        //   corethetaarr[corenum] < theta < corethetaarr[corenum + 1]
+        if (theta >= corethetaarr[corenum]) {
+            // increment corenum
+            ratiobetacalcgreatercm(corenum, theta, corethetaarr);
+        } else {
+            // decrement corenum
+            ratiobetacalcsmallercm(corenum, theta, corethetaarr);
+        }
+        inBetaSeg[corenum] += 5; // Each entry comprises 5 double elements
+    }
+
+    if (verbosity > 5) {
+        std::cerr << corenum << " : Leaving fillingBetaSeg" << std::endl;
+    }
+
+    t_fillingBetaSeg += mpiMgr.Wtime() - tstart;
+}
+
+
+void convolver::ratiobetacalcgreatercm(int &corenum, const double theta,
+                                       levels::arr<double> &corethetaarr) {
+    while (corenum < cores - 1) {
+        if (theta < corethetaarr[corenum + 1]) {
+            break;
+        }
+        ++corenum;
+    }
+}
+
+
+void convolver::ratiobetacalcsmallercm(int &corenum, const double theta,
+                                       levels::arr<double> &corethetaarr) {
+    while (corenum > 0) {
+        if (theta > corethetaarr[corenum]) {
+            break;
+        }
+        --corenum;
+    }
+}
+
+void convolver::todRedistribution5cm(levels::arr<double> pntarr,
+                                     levels::arr<int> inBetaSeg,
+                                     levels::arr<int> outBetaSeg,
+                                     levels::arr<int> &inBetaSegAcc,
+                                     levels::arr<int> &outBetaSegAcc,
+                                     long &outBetaSegSize,
+                                     levels::arr<double> &pntarr2,
+                                     const long totsize,
+                                     levels::arr<int> &inOffset,
+                                     levels::arr<int> &outOffset,
+                                     const double ratiodeltas,
+                                     levels::arr<double> &corethetaarr) {
+    /*
+      Establish offsets for alltoallv and pack the send buffer.
+     */
+    double tstart = mpiMgr.Wtime();
+    ++n_todRedistribution5cm;
+    if (verbosity > 5) {
+        std::cerr << "Entered todRedistribution5cm" << std::endl;
+    }
+
+    inBetaSegAcc.alloc(cores);
+    inBetaSegAcc.fill(0);
+    outBetaSegAcc.alloc(cores);
+    outBetaSegAcc.fill(0);
+    for (long ii = 0; ii < cores; ++ii) {
+        for (long jj = 0; jj <= ii; ++jj) {
+            inBetaSegAcc[ii] += inBetaSeg[jj];
+            outBetaSegAcc[ii] += outBetaSeg[jj];
+        }
+    }
+    outBetaSegSize = outBetaSegAcc[cores - 1];
+    inOffset.alloc(cores);
+    inOffset.fill(0);
+    outOffset.alloc(cores);
+    outOffset.fill(0);
+    for (long ii = 1; ii < cores; ++ii) {
+        outOffset[ii] = outBetaSegAcc[ii - 1];
+        inOffset[ii] = inBetaSegAcc[ii - 1];
+    }
+    if (totsize > 0) {
+        try {
+            pntarr2.alloc(5 * totsize);
+        } catch (std::bad_alloc &e) {
+            std::cerr << " todRedistribution5cm : Out of memory allocating "
+                      << (5 * totsize) * 8. / 1024 / 1024 << "MB for pntarr2"
+                      << std::endl;
+            throw;
+        }
+        // Pack the data in pntarr into pntarr2 for sending
+        pntarr2.fill(0);
+        long offset1 = 0;
+        levels::arr<int> offset2(inOffset);
+        int corenum = 0;
+        for (long ii = 0; ii < totsize; ++ii) {
+            double theta = pntarr[5 * ii + 1];
+            if (theta < 0 || theta > pi) {
+                throw std::runtime_error("ERROR: Illegal latitude in pntarr: theta = " +
+                                         std::to_string(theta) + " not in 0..pi");
+            }
+            if (theta >= halfpi) {
+                theta = pi - theta;
+            }
+            // corenum = theta / ratiodeltas;
+            if (theta >= corethetaarr[corenum]) {
+                ratiobetacalcgreatercm(corenum, theta, corethetaarr);
+            } else {
+                ratiobetacalcsmallercm(corenum, theta, corethetaarr);
+            }
+            memcpy(&(pntarr2[offset2[corenum]]), &(pntarr[offset1]), 5 * sizeof(double));
+            offset1 += 5;
+            offset2[corenum] += 5;
+	}
+    }
+
+    if (verbosity > 5) {
+        std::cerr << "Leaving todRedistribution5cm" << std::endl;
+    }
+
+    t_todRedistribution5cm += mpiMgr.Wtime() - tstart;
+}
+
+
+void convolver::todgen(const long ntod1, const long ntod2,
+                       levels::arr<double> &outpntarr) {
+    double tstart = mpiMgr.Wtime();
+    ++n_todgen;
+
+    levels::arr<double> todTest_arr, todTest_arr2;
+    levels::arr<double> outpntarr1, outpntarr2;
+
+    // Store the input ordering of outpntarr in the signal column
+    for (long ii = 0; ii < ntod1 + ntod2; ++ii) {
+        outpntarr[5 * ii + 3] = ii;
+    }
+
+    if (ntod1 != 0) {
+        // Collect northern hemisphere data from outpntarr to outpntarr1
+        arrFillingcm(ntod1, outpntarr1, outpntarr, 0);
+        todTest_arr.alloc(ntod1);
+        todTest_arr.fill(0);
+    }
+    if (ntod2 != 0) {
+        // Collect southern hemisphere data from outpntarr to outpntarr2
+        arrFillingcm(ntod2, outpntarr2, outpntarr, ntod1);
+        todTest_arr2.alloc(ntod2);
+        todTest_arr2.fill(0);
+    }
+
+    if (verbosity > 5) {
+        std::cerr << "corenum = " << corenum << "  order = " << order
+                  << "  ntod1 = " << ntod1 << "  ntod2 = " << ntod2 << std::endl;
+    }
+
+    mpiMgr.barrier();
+    interpolTOD(outpntarr1, outpntarr2,
+                todTest_arr, todTest_arr2,
+                ntod1, ntod2);
+
+    // Copy signal from todTest_arr into outpntarr
+
+    for (long ii = 0; ii < ntod1; ++ii) {
+        long old_row = outpntarr1[5 * ii + 3] + .5;
+        outpntarr[5 * old_row + 3] = todTest_arr[ii];
+    }
+    todTest_arr.dealloc();
+    outpntarr1.dealloc();
+
+    for (long ii = 0; ii < ntod2; ++ii) {
+        long old_row = outpntarr2[5 * ii + 3] + .5;
+        outpntarr[5 * old_row + 3] = todTest_arr2[ii];
+    }
+    todTest_arr2.dealloc();
+    outpntarr2.dealloc();
+
+    t_todgen += mpiMgr.Wtime() - tstart;
+}
+
+
+void convolver::itheta0SetUp(levels::arr<double> outpntarr,
+                             const long ntod,
+                             long &NThetaIndex,
+                             levels::arr<long> &itheta0,
+                             levels::arr<long> &lowerIndex,
+                             levels::arr<long> &upperIndex,
+                             levels::arr3<xcomplex<double> > &TODAsym) {
+    // Map each TOD sample onto isolatitude rings (itheta0)
+    // and find consecutive ranges of samples that share a ring
+    // (lowerIndex and upperIndex)
+    double tstart = mpiMgr.Wtime();
+    ++n_itheta0SetUp;
+    itheta0.alloc(ntod);
+    ithetacalc(itheta0, outpntarr, ntod);
+    NThetaIndex = itheta0[0] - itheta0[ntod - 1] + npoints;
+    lowerIndex.alloc(NThetaIndex);
+    lowerIndex.fill(ntod);
+    upperIndex.alloc(NThetaIndex);
+    upperIndex.fill(0);
+    for (long jj = 0; jj < NThetaIndex; ++jj) {
+        for (long ii = ntod - 1; ii >= 0; --ii) {
+            if (itheta0[ii] > itheta0[ntod - 1] + jj - npoints) {
+                lowerIndex[jj] = ii;
+                break;
+            }
+        }
+    }
+
+    for (long jj = 0; jj < NThetaIndex; ++jj) {
+        for (long ii = 0; ii < ntod; ++ii) {
+            if (itheta0[ii] <= itheta0[ntod - 1] + jj) {
+                // this yields the smallest ii where
+                // itheta0[ii] <= itheta0[ntod - 1] + jj
+                upperIndex[jj] = ii;
+                break;
+            }
+        }
+    }
+
+    try {
+        TODAsym.alloc(nphi, npsi, NThetaIndex);
+    } catch (std::bad_alloc &e) {
+        std::cerr << "itheta0SetUp :  Out of memory allocating "
+                  << nphi * npsi * NThetaIndex * 8. / 1024 / 1024
+                  << "MB for TODAsym" << std::endl;
         throw;
-      }
-      pntarr2.fill(0);
-      levels::arr<int> countbeta(cores,0);
-      for ( long ii=0; ii < totsize; ii++ )
-	{
-	  long ratiobeta; //, nbeta;
-	  double theta = pntarr[5*ii+1];
-	  if ( theta < 0 || theta > pi )
-	    {
-	      throw std::runtime_error( "ERROR: Illegal latitude in pntarr: theta = " + std::to_string(theta) + " not in 0..pi" );
-	    }
-	  if ( theta >= halfpi ) theta = pi - theta;
-	  ratiobeta = theta / ratiodeltas;
-	  if ( theta >= corethetaarr[ratiobeta] )
-	    ratiobetacalcgreatercm( ratiobeta, theta, corethetaarr );
-	  else
-	    ratiobetacalcsmallercm( ratiobeta, theta, corethetaarr );
-
-	  pntarr2[inOffset[ratiobeta] + countbeta[ratiobeta]] = pntarr[5*ii];
-	  pntarr2[inOffset[ratiobeta] + countbeta[ratiobeta]+1] = pntarr[5*ii+1];
-	  pntarr2[inOffset[ratiobeta] + countbeta[ratiobeta]+2] = pntarr[5*ii+2];
-	  pntarr2[inOffset[ratiobeta] + countbeta[ratiobeta]+3] = pntarr[5*ii+3];
-	  pntarr2[inOffset[ratiobeta] + countbeta[ratiobeta]+4] = pntarr[5*ii+4];
-	  countbeta[ratiobeta] += 5;
-	}
     }
 
-  if ( CMULT_VERBOSITY > 1 ) std::cout << "Leaving todRedistribution5cm" << std::endl;
+    TODAsym.fill(0.);
+    t_itheta0SetUp += mpiMgr.Wtime() - tstart;
 }
 
 
-void convolver::preReorderingStep( long ntod, long ntod2, levels::arr<double> &todAll, levels::arr<double> &todTest_arr, levels::arr<double> &todTest_arr2 )
-{
-  if ( (ntod+ntod2) != 0 ) todAll.alloc( ntod + ntod2 );
-  for ( long ii=0; ii<ntod; ii++ ) todAll[ii] = todTest_arr[ii];
-  if ( ntod != 0 ) todTest_arr.dealloc();
-  for ( long ii=0; ii<ntod2; ii++ ) todAll[ntod+ii] = todTest_arr2[ii];
-  if ( ntod2 != 0 ) todTest_arr2.dealloc();
-}
-
-
-void convolver::todgen_v4( long ntod, long ntod2, levels::arr<double> &todTest_arr, levels::arr<double> &timeTest_arr, levels::arr<double> &todTest_arr2, levels::arr<double> &timeTest_arr2, levels::arr<double> &outpntarr )
-{
-  levels::arr<double> outpntarr1, outpntarr2;
-
-  if ( ntod != 0 ) 
-    {
-      // Collect northern hemisphere data from outpntarr to outpntarr1
-      arrFillingcm_v2( ntod, timeTest_arr, outpntarr1, outpntarr, 0 );
-      todTest_arr.alloc( ntod );
-      todTest_arr.fill( 0 );
+long convolver::beta_to_itheta(double beta) {
+    /*
+      Translate co-latitude into latitude index
+    */
+    if (beta > halfpi) {
+        beta = pi - beta;
     }
-  if ( ntod2 != 0 )
-    {
-      // Collect southern hemisphere data from outpntarr to outpntarr2
-      arrFillingcm_v2( ntod2, timeTest_arr2, outpntarr2, outpntarr, ntod );
-      todTest_arr2.alloc( ntod2 );
-      todTest_arr2.fill( 0 );
+    // Note that the larger the ii the smaller frac is and the smaller itheta0[ii] is.
+    double frac = (beta - theta0) * inv_delta_theta;
+    // Note also that itheta0[ii] is always positive.
+    long itheta = int(frac) - ioffset;
+    if (itheta > (ntheta - npoints)) {
+        itheta = ntheta - npoints;
+    }
+    if (itheta < 0) {
+        itheta = 0;
+    }
+    return itheta;
+}
+
+
+double convolver::itheta_to_beta1(const long itheta) {
+    /*
+      Translate latitude index into co-latitude (Northern hemisphere)
+    */
+    return theta0 + itheta * dtheta;
+}
+
+
+double convolver::itheta_to_beta2(const long itheta) {
+    /*
+      Translate latitude index into co-latitude (Southern hemisphere)
+    */
+    return pi - (theta0 + itheta * dtheta);
+}
+
+
+void convolver::ithetacalc(levels::arr<long> &itheta0,
+                           levels::arr<double> &outpntarr,
+                           const long ntod) {
+    // Map each TOD sample to an isolatitude ring
+    // The TOD is already ordered by latitude
+    double tstart = mpiMgr.Wtime();
+    ++n_ithetacalc;
+    for (long ii = 0; ii < ntod; ++ii) {
+        double beta = outpntarr[5 * ii + 1]; // co-latitude
+        long itheta = beta_to_itheta(beta);
+        itheta0[ii] = itheta;
+    }
+    t_ithetacalc += mpiMgr.Wtime() - tstart;
+}
+
+
+void convolver::conviqt_hemiscm(levels::arr3<xcomplex<double> > &tod1,
+                                levels::arr3<xcomplex<double> > &tod2,
+                                const long NThetaIndex1,
+                                const long NThetaIndex2,
+                                const int ithetaoffset1,
+                                const int ithetaoffset2) {
+    /*
+      Build the beam-convolved theta/phi/psi data cube.
+
+      This unpolarized version duplicates most of conviqt_hemiscm_pol
+      but avoids conditionals in performance-critical code.
+     */
+    if (verbosity > 5) {
+        mpiMgr.barrier();
+        std::cerr << corenum << " : Entering conviqt_hemiscm" << std::endl;
+    }
+    double tstart = mpiMgr.Wtime();
+    ++n_conviqt_hemiscm;
+
+    std::vector<char> need_itheta1_core;
+    std::vector<char> need_itheta2_core;
+    std::vector<int> itheta_core;  // Cores assigned to each latitude
+    std::vector<long> my_itheta;  // Locally assigned latitudes
+
+    get_latitude_tables(NThetaIndex1, NThetaIndex2, ithetaoffset1, ithetaoffset2,
+                        need_itheta1_core, need_itheta2_core, my_itheta, itheta_core);
+
+    long my_ntheta = my_itheta.size();
+
+    levels::arr<double> rthetas(my_ntheta);
+    for (long itheta_local = 0; itheta_local < my_ntheta; ++itheta_local) {
+        long itheta_global = my_itheta[itheta_local];
+        rthetas[itheta_local] = itheta_to_beta1(itheta_global);
     }
 
-  if ( CMULT_VERBOSITY > 1 ) std::cout << "corenum = " << corenum << "  order = " << order << "  ntod = " << ntod << "  ntod2 = " << ntod2 << std::endl;
+    // Locally owned part of the data cube
 
-  if ( !pol )
-    interpolTOD_arrTestcm_v4( outpntarr1, outpntarr2, todTest_arr, todTest_arr2, ntod, ntod2 );
-  else
-    interpolTOD_arrTestcm_pol_v4( outpntarr1, outpntarr2, todTest_arr, todTest_arr2, ntod, ntod2 );
+    levels::arr3< xcomplex<double> > my_Cmm1, my_Cmm2, my_tod1, my_tod2;
 
-}
+    try {
+        my_Cmm1.alloc(nphi, npsi, my_ntheta);
+        my_Cmm2.alloc(nphi, npsi, my_ntheta);
+        my_tod1.alloc(nphi, npsi, my_ntheta);
+        my_tod2.alloc(nphi, npsi, my_ntheta);
+    } catch (std::bad_alloc &e) {
+        std::cerr << "conviqt_hemiscm_pol :  Out of memory allocating "
+                  << nphi * npsi * my_ntheta * 4 * 2 * 8. / 1024 / 1024
+                  << "MB for locally owned data cube" << std::endl;
+        throw;
+    }
 
+    my_Cmm1.fill(0.);
+    my_Cmm2.fill(0.);
+    my_tod1.fill(0.);
+    my_tod2.fill(0.);
 
-void convolver::itheta0SetUp( int npoints, int ioffset, long ntheta, double theta0, double inv_delta_theta, long nphi, levels::arr<double> outpntarr, long ntod, long &NThetaIndex, levels::arr<long> &itheta0, levels::arr<long> &lowerIndex, levels::arr<long> &upperIndex, levels::arr3<xcomplex<double> > &TODAsym )
-{
-  itheta0.alloc(ntod);
-  ithetacalc(itheta0, outpntarr, ntod, inv_delta_theta, theta0, ioffset, ntheta, npoints);
-  NThetaIndex = itheta0[0]-itheta0[ntod-1] + npoints;
-  lowerIndex.alloc(NThetaIndex);
-  lowerIndex.fill(ntod);
-  upperIndex.alloc(NThetaIndex);
-  upperIndex.fill(0);
-  for (long jj=0; jj<NThetaIndex; jj++)
-    for (long ii=ntod-1; ii>=0; ii--) if (itheta0[ii]>itheta0[ntod-1]+jj-npoints) { lowerIndex[jj] = ii; break; }
-  for (long jj=0; jj<NThetaIndex; jj++)
-    for (long ii=0; ii<ntod; ii++) if (itheta0[ii]<=itheta0[ntod-1]+jj) {upperIndex[jj]=ii; break;} // this yields the smallest ii where itheta0[ii]<=itheta0[ntod-1]+jj
-  try {
-    TODAsym.alloc(nphi,beammmax+1,NThetaIndex);
-  } catch ( std::bad_alloc & e ) {
-    std::cerr << "itheta0SetUp :  Out of memory allocating " << nphi*(beammmax+1)*NThetaIndex*8./1024/1024 << "MB for TODasym" << std::endl;
-    throw;
-  }
-
-  TODAsym.fill(0.);
-}
-
-
-void convolver::conviqt_hemiscm_v4( levels::arr3<xcomplex<double> > &tod1, levels::arr3<xcomplex<double> > &tod2, long NThetaIndex1, levels::arr<double> &rthetas )
-{
-  long binElements = 2*lmax + 1;
-  long psiElements = beammmax + 1;
-  levels::arr3<xcomplex<double> > Cmm(binElements, psiElements, NThetaIndex1);
-  Cmm.fill(0.);
-  levels::arr3<xcomplex<double> > Cmm2(binElements, psiElements, NThetaIndex1);
-  Cmm2.fill(0.);
-  
-  Alm< xcomplex<float> > & blmT = b->blmT();
-  Alm< xcomplex<float> > & slmT = s->slmT();
-  levels::arr<double> cs(2*lmax+1), sn(2*lmax+1), cs0(binElements), sn0(binElements);
+    Alm< xcomplex<float> > &blmT = b->blmT();
+    Alm< xcomplex<float> > &slmT = s->slmT();
+    levels::arr<double> cs(nphi), sn(nphi);
+    levels::arr<double> cs0(nphi), sn0(nphi);
 
 #pragma omp parallel default(shared)
-  {
-    wignergen wgen(lmax,rthetas,conv_acc), wgen_neg(lmax,rthetas,conv_acc);
-    //wigner_estimator estimator(lmax,100);
-    for(long beamIndex = 0; beamIndex <= beammmax; beamIndex++)
-      {
-        double dsignb = levels::xpow(beamIndex, 1);
-#pragma omp for schedule(static,8)
-        for (long msky = 0; msky <= lmax; msky++)
-          {
-            double dsign = levels::xpow(msky, 1);
-            double dsb = dsign*dsignb;
-            //estimator.prepare_m( beamIndex, msky );
-            //if ( estimator.canSkip(rthetas[NThetaIndex1-1]) ) continue; // negligible dmm
-            wgen.prepare(beamIndex,msky);
-            wgen_neg.prepare( beamIndex, -msky );
-            for ( long lat=0; lat<NThetaIndex1; lat++ )
-              {
-                int firstl1, firstl2;
-                const levels::arr<double> &dmm=wgen.calc( lat, firstl1 );
-                const levels::arr<double> &dmmneg=wgen_neg.calc( lat, firstl2 );
-                int firstl=(firstl1>firstl2) ? firstl1: firstl2;
-                double dlb = -levels::xpow(firstl, dsignb);
-                for ( long ii=firstl; ii<=lmax; ii++ )
-                  {
-                    dlb = -dlb;
-                    double dMatrixElementmskypos = dsb*dmm[ii]; // Note that msky in dlm is located to the left of mb and they have to be interchanged in the convolution
-                    double dMatrixElementmskyneg = dsb*dmmneg[ii];
-                    double dMatrixElementmskypos2 = dlb*dMatrixElementmskyneg;
-                    double dMatrixElementmskyneg2 = dlb*dMatrixElementmskypos;
-                    double prod1 = slmT(ii,msky).re*blmT(ii,beamIndex).re;
-                    double prod3 = slmT(ii,msky).im*blmT(ii,beamIndex).re;
-                    double prod2 = slmT(ii,msky).im*blmT(ii,beamIndex).im;
-                    double prod4 = slmT(ii,msky).re*blmT(ii,beamIndex).im;
-                    double tmp_1 = prod1 + prod2;
-                    double tmp_2 = prod3 - prod4;
-                    double tmp_3 = prod1 - prod2;
-                    double tmp_4 = -prod3 - prod4;
-                    double xtmp_1 = tmp_1 * dMatrixElementmskypos;
-                    double xtmp_2 = tmp_2 * dMatrixElementmskypos;
-                    double xtmp_3 = dsign*tmp_3 * dMatrixElementmskyneg;
-                    double xtmp_4 = dsign*tmp_4 * dMatrixElementmskyneg;
-                    double xtmp_5 = tmp_1 * dMatrixElementmskypos2;
-                    double xtmp_6 = tmp_2 * dMatrixElementmskypos2;
-                    double xtmp_7 = dsign*tmp_3 * dMatrixElementmskyneg2;
-                    double xtmp_8 = dsign*tmp_4 * dMatrixElementmskyneg2;
-                    Cmm(msky+lmax, beamIndex, lat).real() += xtmp_1;
-                    Cmm(msky+lmax, beamIndex, lat).imag() += xtmp_2;
-                    Cmm2(msky+lmax, beamIndex, lat).real() += xtmp_5;
-                    Cmm2(msky+lmax, beamIndex, lat).imag() += xtmp_6;
-                    if (msky!=0)
-                      {
-                        Cmm(-msky+lmax, beamIndex, lat).real() += xtmp_3;
-                        Cmm(-msky+lmax, beamIndex, lat).imag() += xtmp_4;
-                        Cmm2(-msky+lmax ,beamIndex, lat).real() += xtmp_7;
-                        Cmm2(-msky+lmax, beamIndex, lat).imag() += xtmp_8;
-                      }
-                  }
-              }
-          }
-      }
-#pragma omp for schedule(static,8)
-    for (long msky = -lmax; msky <= lmax; msky++)
-      {
-	double arg=-halfpi*msky;
-	cs[lmax+msky] = cos(arg);
-	sn[lmax+msky] = sin(arg);
-        arg = 2.*pi*(msky+lmax)*lmax/(2.*lmax+1.);
-        cs0[lmax+msky] = cos(arg);
-        sn0[lmax+msky] = sin(arg);
-      }
-  }
+    {
+        double t1 = mpiMgr.Wtime();
+        wignergen wgen(lmax, rthetas, conv_acc), wgen_neg(lmax, rthetas, conv_acc);
+        if (omp_get_thread_num() == 0) {
+            t_wigner_init += mpiMgr.Wtime() - t1;
+            ++n_wigner_init;
+        }
+        //wigner_estimator estimator(lmax,100);
+        for(long mbeam = 0; mbeam < npsi; ++mbeam) {
+            double dsignb = levels::xpow(mbeam, 1);
+#pragma omp for schedule(static, 8)
+            for (long msky = 0; msky <= lmax; ++msky) {
+                const double dsign = levels::xpow(msky, 1);
+                const double dsb = dsign * dsignb;
+                // estimator.prepare_m(mbeam, msky);
+                // if (estimator.canSkip(rthetas[my_ntheta - 1]))
+                //     continue; // negligible dmm
+                t1 = mpiMgr.Wtime();
+                wgen.prepare(mbeam, msky);
+                wgen_neg.prepare(mbeam, -msky);
+                if (omp_get_thread_num() == 0) {
+                    t_wigner_prepare += mpiMgr.Wtime() - t1;
+                    ++n_wigner_prepare;
+                }
+                for (long lat = 0; lat < my_ntheta; ++lat) {
+                    xcomplex<double> &Cmm1_pos = my_Cmm1(msky + lmax, mbeam, lat);
+                    xcomplex<double> &Cmm1_neg = my_Cmm1(-msky + lmax, mbeam, lat);
+                    xcomplex<double> &Cmm2_pos = my_Cmm2(msky + lmax, mbeam, lat);
+                    xcomplex<double> &Cmm2_neg = my_Cmm2(-msky + lmax, mbeam, lat);
+                    int firstl1, firstl2;
+                    const levels::arr<double> &dmm = wgen.calc(lat, firstl1);
+                    const levels::arr<double> &dmmneg = wgen_neg.calc(lat, firstl2);
+                    const int firstl = std::max(firstl1, firstl2);
+                    double dlb = -levels::xpow(firstl, dsignb);
+                    for (long ii = firstl; ii <= lmax; ++ii) {
+                        dlb = -dlb;
+                        // Note that msky in dlm is located to the left of
+                        // mb and they have to be interchanged in the convolution
+                        const double dMatrixElementmskypos = dsb * dmm[ii];
+                        const double dMatrixElementmskyneg = dsb * dmmneg[ii];
+                        const double dMatrixElementmskypos2 = dlb * dMatrixElementmskyneg;
+                        const double dMatrixElementmskyneg2 = dlb * dMatrixElementmskypos;
+                        const xcomplex<float> sT = slmT(ii, msky);
+                        const xcomplex<float> bT = blmT(ii, mbeam);
+                        const double prod1 = sT.re * bT.re;
+                        const double prod3 = sT.im * bT.re;
+                        const double prod2 = sT.im * bT.im;
+                        const double prod4 = sT.re * bT.im;
+                        const double tmp_1 = prod1 + prod2;
+                        const double tmp_2 = prod3 - prod4;
+                        const double xtmp_1 = tmp_1 * dMatrixElementmskypos;
+                        const double xtmp_2 = tmp_2 * dMatrixElementmskypos;
+                        const double xtmp_5 = tmp_1 * dMatrixElementmskypos2;
+                        const double xtmp_6 = tmp_2 * dMatrixElementmskypos2;
+                        Cmm1_pos.re += xtmp_1;
+                        Cmm1_pos.im += xtmp_2;
+                        Cmm2_pos.re += xtmp_5;
+                        Cmm2_pos.im += xtmp_6;
+                        if (msky != 0) {
+                            const double tmp_3 = dsign * (prod1 - prod2);
+                            const double tmp_4 = -dsign * (prod3 + prod4);
+                            const double xtmp_3 = tmp_3 * dMatrixElementmskyneg;
+                            const double xtmp_4 = tmp_4 * dMatrixElementmskyneg;
+                            const double xtmp_7 = tmp_3 * dMatrixElementmskyneg2;
+                            const double xtmp_8 = tmp_4 * dMatrixElementmskyneg2;
+                            Cmm1_neg.re += xtmp_3;
+                            Cmm1_neg.im += xtmp_4;
+                            Cmm2_neg.re += xtmp_7;
+                            Cmm2_neg.im += xtmp_8;
+                        }
+                    }
+                }
+            }
+        }
 
-  todAnnulus_v3( tod1, Cmm, cs, sn, cs0, sn0, NThetaIndex1 );
-  todAnnulus_v3( tod2, Cmm2, cs, sn, cs0, sn0, NThetaIndex1 );
+        const double lmaxinv = double(2 * pi * lmax) / double(2 * lmax + 1);
+#pragma omp for schedule(static, 8)
+        for (long msky = -lmax; msky <= lmax; ++msky) {
+            double arg = -halfpi * msky;
+            long ii = lmax + msky;
+            cs[ii] = cos(arg);
+            sn[ii] = sin(arg);
+            arg = ii * lmaxinv;
+            cs0[ii] = cos(arg);
+            sn0[ii] = sin(arg);
+        }
+    } // End of parallel section
+
+    todAnnulus(my_tod1, my_Cmm1, cs, sn, cs0, sn0, my_ntheta);
+    todAnnulus(my_tod2, my_Cmm2, cs, sn, cs0, sn0, my_ntheta);
+
+    alltoall_datacube(need_itheta1_core, itheta_core, my_itheta, my_tod1, tod1,
+                      ithetaoffset1, NThetaIndex1);
+    alltoall_datacube(need_itheta2_core, itheta_core, my_itheta, my_tod2, tod2,
+                      ithetaoffset2, NThetaIndex2);
+
+    t_conviqt_hemiscm += mpiMgr.Wtime() - tstart;
+
+    if (verbosity > 5) {
+        std::cerr << corenum << " : Exiting conviqt_hemiscm" << std::endl;
+    }
 }
 
 
-void convolver::conviqt_hemiscm_pol_v4( levels::arr3<xcomplex<double> > &tod1, levels::arr3<xcomplex<double> > &tod2, long NThetaIndex1, levels::arr<double> &rthetas )
-{
-  long binElements = 2*lmax + 1;
-  long psiElements = beammmax + 1;
-  levels::arr3<xcomplex<double> > Cmm(binElements, psiElements, NThetaIndex1);
-  Cmm.fill(0.);
-  levels::arr3<xcomplex<double> > Cmm2(binElements, psiElements, NThetaIndex1);
-  Cmm2.fill(0.);
-  
-  Alm< xcomplex<float> > & blmT = b->blmT();
-  Alm< xcomplex<float> > & blmG = b->blmG();
-  Alm< xcomplex<float> > & blmC = b->blmC();
-  Alm< xcomplex<float> > & slmT = s->slmT();
-  Alm< xcomplex<float> > & slmG = s->slmG();
-  Alm< xcomplex<float> > & slmC = s->slmC();
-  levels::arr<double> cs(2*lmax+1), sn(2*lmax+1), cs0(binElements), sn0(binElements);
+void convolver::get_latitude_tables(const long NThetaIndex1,
+                                    const long NThetaIndex2,
+                                    const int ithetaoffset1,
+                                    const int ithetaoffset2,
+                                    std::vector<char> &need_itheta1_core,
+                                    std::vector<char> &need_itheta2_core,
+                                    std::vector<long> &my_itheta,
+                                    std::vector<int> &itheta_core) {
+
+    // Local tables of required latitudes
+
+    std::vector<char> my_need_itheta1(ntheta, false);
+    std::vector<char> my_need_itheta2(ntheta, false);
+
+    for (int itheta = 0; itheta < NThetaIndex1; ++itheta) {
+        my_need_itheta1[ithetaoffset1 + itheta] = true;
+    }
+
+    for (int itheta = 0; itheta < NThetaIndex2; ++itheta) {
+        my_need_itheta2[ithetaoffset2 + itheta] = true;
+    }
+
+    // Global tables of required latitudes
+
+    std::vector<char> need_itheta1(ntheta);
+    std::vector<char> need_itheta2(ntheta);
+    std::vector<char> need_itheta(ntheta);
+    int err;
+
+    err = MPI_Allreduce(my_need_itheta1.data(), need_itheta1.data(),
+                        int(ntheta), MPI_CHAR, MPI_BOR, mpiMgr.comm());
+    if (err) throw std::runtime_error("Failed to reduce need_itheta1");
+
+    err = MPI_Allreduce(my_need_itheta2.data(), need_itheta2.data(),
+                        int(ntheta), MPI_CHAR, MPI_BOR, mpiMgr.comm());
+    if (err) throw std::runtime_error("Failed to reduce need_itheta2");
+
+    need_itheta1_core.resize(ntheta * cores);
+    err = MPI_Allgather(my_need_itheta1.data(), int(ntheta), MPI_CHAR,
+                        need_itheta1_core.data(), int(ntheta), MPI_CHAR,
+                        mpiMgr.comm());
+    if (err) throw std::runtime_error("Failed to gather need_itheta1_core");
+
+    need_itheta2_core.resize(ntheta * cores);
+    err = MPI_Allgather(my_need_itheta2.data(), int(ntheta), MPI_CHAR,
+                        need_itheta2_core.data(), int(ntheta), MPI_CHAR,
+                        mpiMgr.comm());
+    if (err) throw std::runtime_error("Failed to gather need_itheta2_core");
+
+    // Collapse needed indices between North and South hemisphere
+
+    long ntheta_need = 0;  // Total number of required latitudes
+    for (long itheta = 0; itheta < ntheta; ++itheta) {
+        if (need_itheta1[itheta] or need_itheta2[itheta]) {
+            need_itheta[itheta] = true;
+            ++ntheta_need;
+        }
+    }
+
+    // Assign each latitude to exactly one core
+
+    itheta_core.resize(ntheta, -1);
+    // Number of latitudes per core
+    long ntheta_core = ceil(ntheta_need / double(cores));
+    long core = 0;
+    long nassigned = 0;
+    long nleft = ntheta_need;
+
+    for (long itheta = 0; itheta < ntheta; ++itheta) {
+        if (need_itheta[itheta]) {
+            itheta_core[itheta] = core;
+            if (core == corenum) {
+                my_itheta.push_back(itheta);
+            }
+            ++nassigned;
+            --nleft;
+            if (nassigned == ntheta_core) {
+                ++core;
+                nassigned = 0;
+                // Adjust latitudes per core to avoid cores not
+                // having any latitudes
+                ntheta_core = ceil(nleft / double(cores - core));
+            }
+        }
+    }
+}
+
+
+
+void convolver::conviqt_hemiscm_pol(levels::arr3< xcomplex<double> > &tod1,
+                                    levels::arr3< xcomplex<double> > &tod2,
+                                    const long NThetaIndex1,
+                                    const long NThetaIndex2,
+                                    const int ithetaoffset1,
+                                    const int ithetaoffset2) {
+    /*
+      Build the beam-convolved theta/phi/psi data cube
+     */
+    if (verbosity > 5) {
+        mpiMgr.barrier();
+        std::cerr << corenum << " : Entering conviqt_hemiscm_pol" << std::endl;
+    }
+    double tstart = mpiMgr.Wtime();
+    ++n_conviqt_hemiscm_pol;
+
+    std::vector<char> need_itheta1_core;
+    std::vector<char> need_itheta2_core;
+    std::vector<int> itheta_core;  // Cores assigned to each latitude
+    std::vector<long> my_itheta;  // Locally assigned latitudes
+
+    get_latitude_tables(NThetaIndex1, NThetaIndex2, ithetaoffset1, ithetaoffset2,
+                        need_itheta1_core, need_itheta2_core, my_itheta, itheta_core);
+
+    long my_ntheta = my_itheta.size();
+
+    levels::arr<double> rthetas(my_ntheta);
+    for (long itheta_local = 0; itheta_local < my_ntheta; ++itheta_local) {
+        long itheta_global = my_itheta[itheta_local];
+        rthetas[itheta_local] = itheta_to_beta1(itheta_global);
+    }
+
+    // Locally owned part of the data cube
+
+    levels::arr3< xcomplex<double> > my_Cmm1, my_Cmm2, my_tod1, my_tod2;
+
+    try {
+        my_Cmm1.alloc(nphi, npsi, my_ntheta);
+        my_Cmm2.alloc(nphi, npsi, my_ntheta);
+        my_tod1.alloc(nphi, npsi, my_ntheta);
+        my_tod2.alloc(nphi, npsi, my_ntheta);
+    } catch (std::bad_alloc &e) {
+        std::cerr << "conviqt_hemiscm_pol :  Out of memory allocating "
+                  << nphi * npsi * my_ntheta * 4 * 2 * 8. / 1024 / 1024
+                  << "MB for locally owned data cube" << std::endl;
+        throw;
+    }
+
+    my_Cmm1.fill(0.);
+    my_Cmm2.fill(0.);
+    my_tod1.fill(0.);
+    my_tod2.fill(0.);
+
+    Alm< xcomplex<float> > &blmT = b->blmT();
+    Alm< xcomplex<float> > &blmG = b->blmG();
+    Alm< xcomplex<float> > &blmC = b->blmC();
+    Alm< xcomplex<float> > &slmT = s->slmT();
+    Alm< xcomplex<float> > &slmG = s->slmG();
+    Alm< xcomplex<float> > &slmC = s->slmC();
+    levels::arr<double> cs(nphi), sn(nphi);
+    levels::arr<double> cs0(nphi), sn0(nphi);
 
 #pragma omp parallel default(shared)
-  {
-    wignergen wgen(lmax,rthetas,conv_acc), wgen_neg(lmax,rthetas,conv_acc);
-    //wigner_estimator estimator(lmax,100);
-    for( long beamIndex = 0; beamIndex <= beammmax; beamIndex++ )
-      {
-        double dsignb = levels::xpow(beamIndex, 1);
-#pragma omp for schedule(static,8)
-        for ( long msky = 0; msky <= lmax; msky++ )
-          {
-            double dsign = levels::xpow(msky, 1);
-            double dsb = dsign*dsignb;
-            //estimator.prepare_m( beamIndex, msky );
-            //if ( estimator.canSkip(rthetas[NThetaIndex1-1]) ) continue; // negligible dmm
-            wgen.prepare( beamIndex, msky );
-            wgen_neg.prepare( beamIndex, -msky );
-            for ( long lat=0; lat<NThetaIndex1; lat++ )
-              {
-                int firstl1, firstl2;
-                const levels::arr<double> &dmm = wgen.calc( lat, firstl1 );
-                const levels::arr<double> &dmmneg = wgen_neg.calc( lat, firstl2 );
-                int firstl=(firstl1>firstl2) ? firstl1: firstl2;
-                double dlb = -levels::xpow(firstl, dsignb);
-                for ( long ii=firstl; ii<=lmax; ii++ )
-                  {
-                    dlb = -dlb;
-                    double dMatrixElementmskypos = dsb*dmm[ii]; // Note that msky in dlm is located to the left of mb and they have to be interchanged in the convolution
-                    double dMatrixElementmskyneg = dsb*dmmneg[ii];
-                    double dMatrixElementmskypos2 = dlb*dMatrixElementmskyneg;
-                    double dMatrixElementmskyneg2 = dlb*dMatrixElementmskypos;
-                    double prod1 = slmT(ii,msky).re*blmT(ii,beamIndex).re + slmG(ii,msky).re*blmG(ii,beamIndex).re + slmC(ii,msky).re*blmC(ii,beamIndex).re;
-                    double prod3 = slmT(ii,msky).im*blmT(ii,beamIndex).re + slmG(ii,msky).im*blmG(ii,beamIndex).re + slmC(ii,msky).im*blmC(ii,beamIndex).re;
-                    double prod2 = slmT(ii,msky).im*blmT(ii,beamIndex).im + slmG(ii,msky).im*blmG(ii,beamIndex).im + slmC(ii,msky).im*blmC(ii,beamIndex).im;
-                    double prod4 = slmT(ii,msky).re*blmT(ii,beamIndex).im + slmG(ii,msky).re*blmG(ii,beamIndex).im + slmC(ii,msky).re*blmC(ii,beamIndex).im;
-                    double tmp_1 = prod1 + prod2;
-                    double tmp_2 = prod3 - prod4;
-                    double tmp_3 = prod1 - prod2;
-                    double tmp_4 = -prod3 - prod4;
-                    double xtmp_1 = tmp_1 * dMatrixElementmskypos;
-                    double xtmp_2 = tmp_2 * dMatrixElementmskypos;
-                    double xtmp_3 = dsign*tmp_3 * dMatrixElementmskyneg;
-                    double xtmp_4 = dsign*tmp_4 * dMatrixElementmskyneg;
-                    double xtmp_5 = tmp_1 * dMatrixElementmskypos2;
-                    double xtmp_6 = tmp_2 * dMatrixElementmskypos2;
-                    double xtmp_7 = dsign*tmp_3 * dMatrixElementmskyneg2;
-                    double xtmp_8 = dsign*tmp_4 * dMatrixElementmskyneg2;
-                    Cmm(msky+lmax, beamIndex, lat).real() += xtmp_1;
-                    Cmm(msky+lmax, beamIndex, lat).imag() += xtmp_2;
-                    Cmm2(msky+lmax, beamIndex, lat).real() += xtmp_5;
-                    Cmm2(msky+lmax, beamIndex, lat).imag() += xtmp_6;
-                    if (msky!=0)
-                      {
-                        Cmm(-msky+lmax, beamIndex, lat).real() += xtmp_3;
-                        Cmm(-msky+lmax, beamIndex, lat).imag() += xtmp_4;
-                        Cmm2(-msky+lmax, beamIndex, lat).real() += xtmp_7;
-                        Cmm2(-msky+lmax, beamIndex, lat).imag() += xtmp_8;
-                      }
-                  }
-              }
-          }
-      }
-#pragma omp for schedule(static,8)
-  for (long msky = -lmax; msky <= lmax; msky++)
-      {
-	double arg=-halfpi*msky;
-	cs[lmax+msky] = cos(arg);
-	sn[lmax+msky] = sin(arg);
-        arg = 2.*pi*(msky+lmax)*lmax/(2.*lmax+1.);
-        cs0[lmax+msky] = cos(arg);
-        sn0[lmax+msky] = sin(arg);
-    }
-  }
+    {
+        double t1 = mpiMgr.Wtime();
+        wignergen wgen(lmax, rthetas, conv_acc), wgen_neg(lmax, rthetas, conv_acc);
+        if (omp_get_thread_num() == 0) {
+            t_wigner_init += mpiMgr.Wtime() - t1;
+            ++n_wigner_init;
+        }
+        // wigner_estimator estimator(lmax, 100);
+        for(long mbeam = 0; mbeam < npsi; ++mbeam) {
+            const double dsignb = levels::xpow(mbeam, 1);
+#pragma omp for schedule(static, 8)
+            for (long msky = 0; msky <= lmax; ++msky) {
+                const double dsign = levels::xpow(msky, 1);
+                const double dsb = dsign * dsignb;
+                //estimator.prepare_m(mbeam, msky);
+                // if (estimator.canSkip(rthetas[my_ntheta - 1]))
+                //     continue; // negligible dmm
+                t1 = mpiMgr.Wtime();
+                wgen.prepare(mbeam, msky);
+                wgen_neg.prepare(mbeam, -msky);
+                if (omp_get_thread_num() == 0) {
+                    t_wigner_prepare += mpiMgr.Wtime() - t1;
+                    ++n_wigner_prepare;
+                }
+                for (long itheta = 0; itheta < my_ntheta; ++itheta) {
+                    int firstl1, firstl2;
+                    const levels::arr<double> &dmm = wgen.calc(itheta, firstl1);
+                    const levels::arr<double> &dmmneg = wgen_neg.calc(itheta, firstl2);
+                    xcomplex<double> &Cmm1_pos = my_Cmm1(msky + lmax, mbeam, itheta);
+                    xcomplex<double> &Cmm1_neg = my_Cmm1(-msky + lmax, mbeam, itheta);
+                    xcomplex<double> &Cmm2_pos = my_Cmm2(msky + lmax, mbeam, itheta);
+                    xcomplex<double> &Cmm2_neg = my_Cmm2(-msky + lmax, mbeam, itheta);
+                    const int firstl = std::max(firstl1, firstl2);
+                    double dlb = -levels::xpow(firstl, dsignb);
+                    for (long ii = firstl; ii <= lmax; ++ii) {
+                        dlb = -dlb;
+                        // Note that msky in dlm is located to the
+                        // left of mb and they have to be interchanged in the convolution
+                        const double dMatrixElementmskypos = dsb * dmm[ii];
+                        const double dMatrixElementmskyneg = dsb * dmmneg[ii];
+                        const double dMatrixElementmskypos2 = dlb * dMatrixElementmskyneg;
+                        const double dMatrixElementmskyneg2 = dlb * dMatrixElementmskypos;
+                        const xcomplex<float> &sT = slmT(ii, msky);
+                        const xcomplex<float> &sG = slmG(ii, msky);
+                        const xcomplex<float> &sC = slmC(ii, msky);
+                        const xcomplex<float> &bT = blmT(ii, mbeam);
+                        const xcomplex<float> &bG = blmG(ii, mbeam);
+                        const xcomplex<float> &bC = blmC(ii, mbeam);
+                        const double prod1 = sT.re * bT.re + sG.re * bG.re + sC.re * bC.re;
+                        const double prod2 = sT.im * bT.im + sG.im * bG.im + sC.im * bC.im;
+                        const double prod3 = sT.im * bT.re + sG.im * bG.re + sC.im * bC.re;
+                        const double prod4 = sT.re * bT.im + sG.re * bG.im + sC.re * bC.im;
+                        const double tmp_1 = prod1 + prod2;
+                        const double tmp_2 = prod3 - prod4;
+                        const double xtmp_1 = tmp_1 * dMatrixElementmskypos;
+                        const double xtmp_2 = tmp_2 * dMatrixElementmskypos;
+                        const double xtmp_5 = tmp_1 * dMatrixElementmskypos2;
+                        const double xtmp_6 = tmp_2 * dMatrixElementmskypos2;
+                        Cmm1_pos.re += xtmp_1;
+                        Cmm1_pos.im += xtmp_2;
+                        Cmm2_pos.re += xtmp_5;
+                        Cmm2_pos.im += xtmp_6;
+                        if (msky != 0) {
+                            double tmp_3 = dsign * (prod1 - prod2);
+                            double tmp_4 = -dsign * (prod3 + prod4);
+                            double xtmp_3 = tmp_3 * dMatrixElementmskyneg;
+                            double xtmp_4 = tmp_4 * dMatrixElementmskyneg;
+                            double xtmp_7 = tmp_3 * dMatrixElementmskyneg2;
+                            double xtmp_8 = tmp_4 * dMatrixElementmskyneg2;
+                            Cmm1_neg.re += xtmp_3;
+                            Cmm1_neg.im += xtmp_4;
+                            Cmm2_neg.re += xtmp_7;
+                            Cmm2_neg.im += xtmp_8;
+                        }
+                    }
+                }
+            }
+        }
 
-  todAnnulus_v3(tod1, Cmm, cs, sn, cs0, sn0, NThetaIndex1);
-  todAnnulus_v3(tod2, Cmm2, cs, sn, cs0, sn0, NThetaIndex1);
+        const double lmaxinv = double(2 * pi * lmax) / double(2 * lmax + 1);
+#pragma omp for schedule(static, 8)
+        for (long msky = -lmax; msky <= lmax; ++msky) {
+            double arg = -halfpi * msky;
+            long ii = lmax + msky;
+            cs[ii] = cos(arg);
+            sn[ii] = sin(arg);
+            arg = ii * lmaxinv;
+            cs0[ii] = cos(arg);
+            sn0[ii] = sin(arg);
+        }
+    } // End of parallel section
+
+    todAnnulus(my_tod1, my_Cmm1, cs, sn, cs0, sn0, my_ntheta);
+    todAnnulus(my_tod2, my_Cmm2, cs, sn, cs0, sn0, my_ntheta);
+
+    alltoall_datacube(need_itheta1_core, itheta_core, my_itheta, my_tod1, tod1,
+                      ithetaoffset1, NThetaIndex1);
+    alltoall_datacube(need_itheta2_core, itheta_core, my_itheta, my_tod2, tod2,
+                      ithetaoffset2, NThetaIndex2);
+
+    t_conviqt_hemiscm_pol += mpiMgr.Wtime() - tstart;
+
+    if (verbosity > 5) {
+        std::cerr << corenum << " : Exiting conviqt_hemiscm_pol" << std::endl;
+    }
 }
 
 
-void convolver::conviqt_hemiscm_single( levels::arr3<xcomplex<double> > &tod1, long NThetaIndex1, levels::arr<double> &rthetas )
-{
-  long binElements = 2*lmax + 1;
-  long psiElements = beammmax + 1;
-  levels::arr3<xcomplex<double> > Cmm(binElements,psiElements,NThetaIndex1);
-  Cmm.fill(0.);
-  
-  Alm< xcomplex<float> > & blmT = b->blmT();
-  Alm< xcomplex<float> > & slmT = s->slmT();
-  levels::arr<double> cs(2*lmax+1), sn(2*lmax+1), cs0(binElements), sn0(binElements);
+void convolver::alltoall_datacube(std::vector<char> &need_itheta_core,
+                                  std::vector<int> &itheta_core,
+                                  std::vector<long> &my_itheta,
+                                  levels::arr3< xcomplex<double> > &my_tod,
+                                  levels::arr3< xcomplex<double> > &tod,
+                                  const long ithetaoffset, const long NThetaIndex) {
+    if (verbosity > 5) {
+        std::cerr << corenum << " : Entering alltoall_datacube" << std::endl;
+    }
+    double tstart = mpiMgr.Wtime();
+    ++n_alltoall_datacube;
+
+    // Calculate the latitudes we send and receive
+
+    std::vector<int> sendcounts_lat(cores, 0);
+    std::vector<int> recvcounts_lat(cores, 0);
+    std::vector<int> itheta_send, itheta_recv;
+
+    for (long core = 0; core < cores; ++core) {
+
+        // How many to send to each core
+
+        for (long pos = 0; pos < my_itheta.size(); ++pos) {
+            long itheta = my_itheta[pos];
+            if (need_itheta_core[core * ntheta + itheta]) {
+                ++sendcounts_lat[core];
+                // local rather than global latitude index
+                itheta_send.push_back(pos);
+            }
+        }
+
+        // How many to receive from each core
+
+        for (long pos = 0; pos < NThetaIndex; ++pos) {
+            long itheta = pos + ithetaoffset;
+            if (itheta_core[itheta] == core) {
+                ++recvcounts_lat[core];
+                // local rather than global latitude index
+                itheta_recv.push_back(pos);
+            }
+        }
+    }
+
+    long nsend = itheta_send.size();
+    long nrecv = itheta_recv.size();
+
+    // Number of doubles per latitude
+
+    long bufsize = nphi * npsi * 2;
+    std::vector<double> sendbuf, recvbuf;
+    try {
+        sendbuf.resize(nsend * bufsize);
+        recvbuf.resize(nrecv * bufsize);
+    } catch (std::bad_alloc &e) {
+        std::cerr << "alltoall_datacube :  Out of memory allocating "
+                  << (nsend + nrecv) * bufsize * 8. / 1024 / 1024
+                  << "MB for receiving and sending" << std::endl;
+        throw;
+    }
+
+    std::vector<int> sendcounts(cores), sdispls(cores);
+    std::vector<int> recvcounts(cores), rdispls(cores);
+
+    // Pack send buffer.  Unfortunately the TOD is stored row-major
+    // so we are accessing my_tod at a stride of my_ntheta
+
+    double *p = sendbuf.data();
+    for (long isend = 0; isend < nsend; ++isend) {
+        long pos = itheta_send[isend];
+        for (long iphi = 0; iphi < nphi; ++iphi) {
+            for (long ipsi = 0; ipsi < npsi; ++ipsi) {
+                *(p++) = my_tod(iphi, ipsi, pos).re;
+                *(p++) = my_tod(iphi, ipsi, pos).im;
+            }
+        }
+    }
+
+    for (int core = 0; core < cores; ++core) {
+        sendcounts[core] = sendcounts_lat[core] * bufsize;
+        recvcounts[core] = recvcounts_lat[core] * bufsize;
+        if (core == 0) {
+            sdispls[core] = 0;
+            rdispls[core] = 0;
+        } else {
+            sdispls[core] = sdispls[core - 1] + sendcounts[core - 1];
+            rdispls[core] = rdispls[core - 1] + recvcounts[core - 1];
+        }
+    }
+
+    int err = MPI_Alltoallv(sendbuf.data(), sendcounts.data(), sdispls.data(), MPI_DOUBLE,
+                            recvbuf.data(), recvcounts.data(), rdispls.data(), MPI_DOUBLE,
+                            mpiMgr.comm());
+    if (err) throw std::runtime_error("Failed to alltoall datacube");
+
+    // Unpack recv buffer
+
+    p = recvbuf.data();
+    for (long irecv = 0; irecv < nrecv; ++irecv) {
+        long pos = itheta_recv[irecv];
+        for (long iphi = 0; iphi < nphi; ++iphi) {
+            for (long ipsi = 0; ipsi < npsi; ++ipsi) {
+                tod(iphi, ipsi, pos).re = *(p++);
+                tod(iphi, ipsi, pos).im = *(p++);
+            }
+        }
+    }
+
+    t_alltoall_datacube += mpiMgr.Wtime() - tstart;
+
+    if (verbosity > 5) {
+        std::cerr << corenum << " : Exiting alltoall_datacube" << std::endl;
+    }
+}
+
+
+void convolver::todAnnulus(levels::arr3<xcomplex<double> > &tod,
+                           levels::arr3<xcomplex<double> > &Cmm,
+                           levels::arr<double> &cs,
+                           levels::arr<double> &sn,
+                           levels::arr<double> &cs0,
+                           levels::arr<double> &sn0,
+                           long NThetaIndex) {
+    if (verbosity > 5) {
+        std::cerr << corenum << " : Entering todAnnulus" << std::endl;
+    }
+    double tstart = mpiMgr.Wtime();
+    ++n_todAnnulus;
 
 #pragma omp parallel default(shared)
-  {
-    wignergen wgen( lmax, rthetas, conv_acc ), wgen_neg( lmax, rthetas, conv_acc );
-    //wigner_estimator estimator( lmax, 100 );
-    
-    for(long beamIndex = 0; beamIndex <= beammmax; beamIndex++)
-      {
-	double dsignb = levels::xpow(beamIndex, 1);
-#pragma omp for schedule(static,8)
-	for (long msky = 0; msky <= lmax; msky++)
-	  {
-	    double dsign = levels::xpow(msky, 1);
-            double dsb = dsign*dsignb;
-	    //estimator.prepare_m( beamIndex, msky );
-	    //if ( estimator.canSkip(rthetas[NThetaIndex1-1]) ) continue; // negligible dmm
-	    wgen.prepare( beamIndex, msky );
-	    wgen_neg.prepare( beamIndex, -msky );
-	    for ( long lat=0; lat<NThetaIndex1; lat++ )
-	      {
-		double & Cmm_pos_re = Cmm( msky+lmax, beamIndex, lat).real();
-		double & Cmm_pos_im = Cmm( msky+lmax, beamIndex, lat).imag();
-		double & Cmm_neg_re = Cmm(-msky+lmax, beamIndex, lat).real();
-		double & Cmm_neg_im = Cmm(-msky+lmax, beamIndex, lat).imag();
-		int firstl1, firstl2;
-		const levels::arr<double> &dmm = wgen.calc( lat, firstl1 );
-		const levels::arr<double> &dmmneg = wgen_neg.calc( lat, firstl2 );
-		int firstl=(firstl1>firstl2) ? firstl1: firstl2;
-		for ( long ii=firstl; ii<=lmax; ii++ )
-		  {
-		    double dMatrixElementmskypos = dsb*dmm[ii]; // Note that msky in dlm is located to the left of mb and they have to be interchanged in the convolution
-		    double dMatrixElementmskyneg = dsb*dmmneg[ii];
-		    double prod1 = slmT(ii,msky).re * blmT(ii,beamIndex).re;
-		    double prod3 = slmT(ii,msky).im * blmT(ii,beamIndex).re;
-		    double prod2 = slmT(ii,msky).im * blmT(ii,beamIndex).im;
-		    double prod4 = slmT(ii,msky).re * blmT(ii,beamIndex).im;
-		    double tmp_1 = prod1 + prod2;
-		    double tmp_2 = prod3 - prod4;
-		    double xtmp_1 = tmp_1 * dMatrixElementmskypos;
-		    double xtmp_2 = tmp_2 * dMatrixElementmskypos;
-		    Cmm_pos_re += xtmp_1;
-		    Cmm_pos_im += xtmp_2;
-		    if ( msky != 0 )
-		      {
-			double tmp_3 = prod1 - prod2;
-			double tmp_4 = -prod3 - prod4;
-			double xtmp_3 = dsign * tmp_3 * dMatrixElementmskyneg;
-			double xtmp_4 = dsign * tmp_4 * dMatrixElementmskyneg;
-			Cmm_neg_re += xtmp_3;
-			Cmm_neg_im += xtmp_4;
-		      }
-		  }
-	      }
-	  }
-      }
-#pragma omp for schedule(static,8)
-  for (long msky = -lmax; msky <= lmax; msky++)
-      {
-	double arg = -halfpi*msky;
-	cs[lmax+msky] = cos(arg);
-	sn[lmax+msky] = sin(arg);
-        arg = 2.*pi*(msky+lmax)*lmax/(2.*lmax+1.);
-        cs0[lmax+msky] = cos(arg);
-        sn0[lmax+msky] = sin(arg);
+    {
+        levels::arr< xcomplex<double> > Cmsky(nphi, 0);
+        cfft p1(nphi);
+
+#pragma omp for schedule(static, 8)
+        for (long msky = -lmax; msky <= lmax; ++msky) {
+            const long ii = msky + lmax;
+            const double cos1 = cs[ii];
+            const double sin1 = sn[ii];
+            for (long mbeam = 0; mbeam < npsi; ++mbeam) {
+                for (long lat = 0; lat < NThetaIndex; ++lat) {
+                    // Get references to the complex parts to
+                    // avoid overhead
+                    xcomplex<double> &Cmmref = Cmm(ii, mbeam, lat);
+                    double &CmmR = Cmmref.re;
+                    double &CmmI = Cmmref.im;
+                    const double tempR = CmmR;
+                    const double tempI = CmmI;
+                    CmmR = cos1 * tempR + sin1 * tempI;
+                    CmmI = cos1 * tempI - sin1 * tempR;
+                }
+            }
+        } // end of parallel for
+
+#pragma omp for schedule(static, 1)
+        for (long mbeam = 0; mbeam < npsi; ++mbeam) {
+            for (long lat = 0; lat < NThetaIndex; ++lat) {
+                for (long msky = -lmax; msky <= lmax; ++msky) {
+                    const long ii = msky + lmax;
+                    Cmsky[ii] = Cmm(ii, mbeam, lat);
+                }
+                p1.backward(Cmsky);
+                for (long msky = 0; msky < nphi; msky++) {
+                    tod(msky, mbeam, lat) = Cmsky[msky];
+                }
+            }
+        } // end of parallel for
+
+#pragma omp for schedule(static, 8)
+        for (long msky = -lmax; msky <= lmax; ++msky) {
+            const long ii = msky + lmax;
+            const double cos0 = cs0[ii];
+            const double sin0 = sn0[ii];
+            for (long mbeam = 0; mbeam < npsi; ++mbeam) {
+                const long jj = mbeam + lmax;
+                const double cos1 = cs[jj];
+                const double sin1 = sn[jj];
+                double tempR, tempI;
+                for (long lat = 0; lat < NThetaIndex; ++lat) {
+                    // Get references to the complex parts to
+                    // avoid overhead
+                    xcomplex<double> &todref = tod(ii, mbeam, lat);
+                    double &todR = todref.re;
+                    double &todI = todref.im;
+                    tempR = todR;  // Copy the value
+                    tempI = todI;
+                    todR = cos0 * tempR + sin0 * tempI;
+                    todI = cos0 * tempI - sin0 * tempR;
+                    // Rotate in psi space
+                    tempR = todR;  // Copy updated value
+                    tempI = todI;
+                    todR = cos1 * tempR + sin1 * tempI;
+                    todI = cos1 * tempI - sin1 * tempR;
+                }
+            }
+        } // end of parallel for
+
+    } // end of parallel region
+
+    // Finished with convolution and FFT over msky.
+
+    t_todAnnulus += mpiMgr.Wtime() - tstart;
+
+    if (verbosity > 5) {
+        std::cerr << corenum << " : Exiting todAnnulus" << std::endl;
     }
-  } // end parallel region
-  
-  todAnnulus_v3(tod1, Cmm, cs, sn, cs0, sn0, NThetaIndex1);
 }
 
 
-void convolver::conviqt_hemiscm_pol_single( levels::arr3<xcomplex<double> > &tod1, long NThetaIndex1, levels::arr<double> &rthetas )
-{
-  long binElements = 2*lmax + 1;
-  long psiElements = beammmax + 1;
-  levels::arr3<xcomplex<double> > Cmm(binElements,psiElements,NThetaIndex1);
-  Cmm.fill(0.);
+void convolver::interpolTOD(levels::arr<double> &outpntarr1,
+                            levels::arr<double> &outpntarr2,
+                            levels::arr<double> &TODValue1,
+                            levels::arr<double> &TODValue2,
+                            const long ntod1, const long ntod2) {
+    double tstart = mpiMgr.Wtime();
+    ++n_interpolTOD;
 
-  Alm< xcomplex<float> > & blmT = b->blmT();
-  Alm< xcomplex<float> > & blmG = b->blmG();
-  Alm< xcomplex<float> > & blmC = b->blmC();
-  Alm< xcomplex<float> > & slmT = s->slmT();
-  Alm< xcomplex<float> > & slmG = s->slmG();
-  Alm< xcomplex<float> > & slmC = s->slmC();
-  levels::arr<double> cs(2*lmax+1), sn(2*lmax+1), cs0(binElements), sn0(binElements);
+    if (verbosity > 5) {
+        std::cerr << corenum << " : Entering interpolTOD" << std::endl;
+    }
+
+    levels::arr<long> itheta0_1, itheta0_2;
+    long NThetaIndex1 = 0, NThetaIndex2 = 0;
+    levels::arr<long> lowerIndex1, lowerIndex2;
+    levels::arr<long> upperIndex1, upperIndex2;
+    levels::arr3< xcomplex<double> > TODAsym1, TODAsym2;
+    long ithetaoffset1 = 0, ithetaoffset2 = 0;
+
+    if (ntod1 != 0) {
+        itheta0SetUp(outpntarr1, ntod1, NThetaIndex1, itheta0_1,
+                     lowerIndex1, upperIndex1, TODAsym1);
+        ithetaoffset1 = itheta0_1[ntod1 - 1];
+    }
+
+    if (ntod2 != 0) {
+        itheta0SetUp(outpntarr2, ntod2, NThetaIndex2, itheta0_2,
+                     lowerIndex2, upperIndex2, TODAsym2);
+        ithetaoffset2 = itheta0_2[ntod2 - 1];
+    }
+
+    if (verbosity > 5) {
+        for (int core = 0; core < cores; ++core) {
+            if (core == corenum) {
+                std::cerr << corenum << " :"
+                          << " NThetaIndex1 = " << NThetaIndex1
+                          << " ntod1 = " << ntod1
+                          << " NThetaIndex2 = " << NThetaIndex2
+                          << " ntod2 = " << ntod2
+                          << std::endl;
+            }
+            mpiMgr.barrier();
+        }
+    }
+
+    if (pol) {
+        conviqt_hemiscm_pol(TODAsym1, TODAsym2,
+                            NThetaIndex1, NThetaIndex2,
+                            ithetaoffset1, ithetaoffset2);
+    } else {
+        conviqt_hemiscm(TODAsym1, TODAsym2,
+                        NThetaIndex1, NThetaIndex2,
+                        ithetaoffset1, ithetaoffset2);
+    }
+
+    for (int thetaIndex = 0; thetaIndex < NThetaIndex1; ++thetaIndex) {
+        conviqt_tod_loop(lowerIndex1, upperIndex1, outpntarr1, TODAsym1,
+                         thetaIndex, itheta0_1, ntod1, TODValue1,
+                         thetaIndex);
+    }
+
+    for (int thetaIndex = 0; thetaIndex < NThetaIndex2; ++thetaIndex) {
+        conviqt_tod_loop(lowerIndex2, upperIndex2, outpntarr2, TODAsym2,
+                         thetaIndex, itheta0_2, ntod2, TODValue2,
+                         thetaIndex);
+    }
+
+    if (verbosity > 5) {
+        std::cerr << corenum << " : Exiting interpolTOD" << std::endl;
+    }
+
+    t_interpolTOD += mpiMgr.Wtime() - tstart;
+}
+
+
+void convolver::conviqt_tod_loop(levels::arr<long> &lowerIndex,
+                                 levels::arr<long> &upperIndex,
+                                 levels::arr<double> &outpntarr,
+                                 levels::arr3<xcomplex<double> > &TODAsym,
+                                 const long thetaIndex,
+                                 levels::arr<long> &itheta0,
+                                 const long ntod,
+                                 levels::arr<double> &TODValue,
+                                 const long lat) {
+    if (verbosity > 5) {
+        std::cerr << corenum << " : Entering conviqt_tod_loop" << std::endl;
+    }
+
+    double tstart = mpiMgr.Wtime();
+    ++n_conviqt_tod_loop;
+    levels::arr2< xcomplex<double> > conviqtarr;
+    try {
+        conviqtarr.alloc(nphi, npsi);
+    } catch (std::bad_alloc &e) {
+        std::cerr << "conviqt_tod_loop : Out of memory allocating "
+                  << nphi * npsi * 16. / 1024 / 1024
+                  << "MB for conviqtarr" << std::endl;
+        throw;
+    }
+
+    for (long ii = 0; ii < nphi; ++ii) {
+        for (long jj = 0; jj < npsi; ++jj) {
+            conviqtarr[ii][jj] = TODAsym(ii, jj, lat);
+        }
+    }
+
+    weight_ncm_initialize();  // Ensure base_wgt is set-up
+
+    const long thetaoffset = thetaIndex + itheta0[ntod - 1];
 
 #pragma omp parallel default(shared)
-  {  
-    wignergen wgen( lmax, rthetas, conv_acc ), wgen_neg( lmax, rthetas, conv_acc );
-    //wigner_estimator estimator( lmax, 100 );
-    for ( long beamIndex = 0; beamIndex <= beammmax; beamIndex++ )
-      {
-        double dsignb = levels::xpow(beamIndex, 1);
-#pragma omp for schedule(static,8)
-	for ( long msky = 0; msky <= lmax; msky++ )
-	  {
-            double dsign = levels::xpow(msky, 1);
-            double dsb = dsign*dsignb;
-	    //estimator.prepare_m( beamIndex, msky );
-	    //if ( estimator.canSkip(rthetas[NThetaIndex1-1]) ) continue; // negligible dmm
-	    wgen.prepare( beamIndex, msky );
-	    wgen_neg.prepare( beamIndex, -msky );
-	    for ( long lat=0; lat<NThetaIndex1; lat++ )
-	      {
-		double & Cmm_pos_re = Cmm( msky+lmax, beamIndex, lat).real();
-		double & Cmm_pos_im = Cmm( msky+lmax, beamIndex, lat).imag();
-		double & Cmm_neg_re = Cmm(-msky+lmax, beamIndex, lat).real();
-		double & Cmm_neg_im = Cmm(-msky+lmax, beamIndex, lat).imag();
-		int firstl1, firstl2;
-		const levels::arr<double> &dmm = wgen.calc( lat, firstl1 );
-		const levels::arr<double> &dmmneg = wgen_neg.calc( lat, firstl2 );
-		int firstl = (firstl1>firstl2) ? firstl1: firstl2;
-		for ( long ii=firstl; ii<=lmax; ii++ )
-		  {
-		    double dMatrixElementmskypos = dsb*dmm[ii];//Note that msky in dlm is located to the left of mb and they have to be interchanged in the convolution
-		    xcomplex<float> sT = slmT(ii,msky);
-		    xcomplex<float> sG = slmG(ii,msky);
-		    xcomplex<float> sC = slmC(ii,msky);
-		    xcomplex<float> bT = blmT(ii,beamIndex);
-		    xcomplex<float> bG = blmG(ii,beamIndex);
-		    xcomplex<float> bC = blmC(ii,beamIndex);
-		    double prod1 = sT.re*bT.re + sG.re*bG.re + sC.re*bC.re;
-		    double prod3 = sT.im*bT.re + sG.im*bG.re + sC.im*bC.re;
-		    double prod2 = sT.im*bT.im + sG.im*bG.im + sC.im*bC.im;
-		    double prod4 = sT.re*bT.im + sG.re*bG.im + sC.re*bC.im;
-		    double tmp_1 = prod1 + prod2;
-		    double tmp_2 = prod3 - prod4;
-		    double xtmp_1 = tmp_1 * dMatrixElementmskypos;
-		    double xtmp_2 = tmp_2 * dMatrixElementmskypos;
-		    Cmm_pos_re += xtmp_1;
-		    Cmm_pos_im += xtmp_2;
-		    if ( msky != 0 )
-		      {
-			double tmp_3 = prod1 - prod2;
-			double tmp_4 = -prod3 - prod4;
-			double dMatrixElementmskyneg = dsb*dmmneg[ii];
-			double xtmp_3 = dsign*tmp_3 * dMatrixElementmskyneg;
-			double xtmp_4 = dsign*tmp_4 * dMatrixElementmskyneg;
-			Cmm_neg_re += xtmp_3;
-			Cmm_neg_im += xtmp_4;
-		      }
-		  }
-	      }
-	  }
-      } // end of parallel for
-
-#pragma omp for schedule(static,8)
-    for (long msky = -lmax; msky <= lmax; msky++)
-      {
-	double arg=-halfpi*msky;
-	cs[lmax+msky] = cos(arg);
-	sn[lmax+msky] = sin(arg);
-        arg = 2.*pi*(msky+lmax)*lmax/(2.*lmax+1.);
-        cs0[lmax+msky] = cos(arg);
-        sn0[lmax+msky] = sin(arg);
-      }
-  } // end of parallel region
-  
-  todAnnulus_v3(tod1, Cmm, cs, sn, cs0, sn0, NThetaIndex1);
-}
-
-
-void convolver::todAnnulus_v3(levels::arr3<xcomplex<double> > &tod1, levels::arr3<xcomplex<double> > &Cmm, levels::arr<double> &cs, levels::arr<double> &sn, levels::arr<double> &cs0, levels::arr<double> &sn0, long NThetaIndex1)
-{
-  long binElements=2*lmax+1;
-
-#pragma omp parallel default(shared)
-  {  
-#pragma omp for schedule(static,8)
-    for (long msky = -lmax; msky <= lmax; msky++)
-      {
-        for (long beamIndex=0; beamIndex<=beammmax; beamIndex++)
-          {
-            for (long lat=0; lat<NThetaIndex1; lat++)
-              {
-                //double dPhi=-halfpi;
-                double tmpR=Cmm(msky+lmax, beamIndex, lat).real(), tmpI=Cmm(msky+lmax, beamIndex, lat).imag();
-                Cmm(msky+lmax, beamIndex, lat).real() = (cs[msky+lmax]*tmpR + sn[msky+lmax]*tmpI);
-                Cmm(msky+lmax, beamIndex, lat).imag() = (cs[msky+lmax]*tmpI - sn[msky+lmax]*tmpR);
-              }
-          }
-      } // end of parallel for
-#pragma omp for schedule(static,1)
-    for (long beamIndex=0; beamIndex<=beammmax; beamIndex++)
-      {
-        for (long lat=0; lat<NThetaIndex1; lat++)
-          {
-            levels::arr<xcomplex<double> > Cmsky(binElements, 0);
-            for (long msky=-lmax; msky<=lmax; msky++) Cmsky[msky+lmax]=Cmm(msky+lmax, beamIndex, lat);
-            cfft p1(binElements);
-            p1.backward(Cmsky);
-            for (long msky=0; msky<binElements; msky++) tod1(msky, beamIndex, lat)=Cmsky[msky];
-          }
-      } // end of parallel for
-#pragma omp for schedule(static,8)
-    for (long msky = -lmax; msky <= lmax; msky++)
-      {
-        for (long beamIndex=0; beamIndex<=beammmax; beamIndex++)
-          {
-            for (long lat=0; lat<NThetaIndex1; lat++)
-              {
-                double tmpR=tod1(msky+lmax, beamIndex, lat).real(), tmpI=tod1(msky+lmax, beamIndex, lat).imag();
-                tod1(msky+lmax, beamIndex, lat).real() = (cs0[lmax+msky]*tmpR + sn0[lmax+msky]*tmpI);
-                tod1(msky+lmax, beamIndex, lat).imag() = (cs0[lmax+msky]*tmpI - sn0[lmax+msky]*tmpR);
-                //Rotate in psi space
-                tmpR=tod1(msky+lmax, beamIndex, lat).real(); tmpI=tod1(msky+lmax, beamIndex, lat).imag();
-                tod1(msky+lmax, beamIndex, lat).real() = (cs[beamIndex+lmax]*tmpR + sn[beamIndex+lmax]*tmpI);
-                tod1(msky+lmax, beamIndex, lat).imag() = (cs[beamIndex+lmax]*tmpI - sn[beamIndex+lmax]*tmpR);
-              }
-          }
-      } // end of parallel for
-  } // end of parallel region
-  //Note that now, -lmax <= msky <= lmax corresponds to the angle 0 <= phi <= 2.*pi/2./(2.*lmax+1.) and -pi <= phi <= -2.pi/(2.*lmax+1.)
-  //Finished with convolution and FFT over msky.
-}
-
-
-void convolver::interpolTOD_arrTestcm_v4( levels::arr<double> &outpntarr1, levels::arr<double> &outpntarr2, levels::arr<double> &TODValue, levels::arr<double> &TODValue2, long ntod, long ntod2 )
-{
-  if ( CMULT_VERBOSITY > 1 ) std::cout << "Entered interpolTOD_arrTestcm_v4" << std::endl;
-  double phi0 = halfpi;
-  //long npsi = 2*beammmax+1;
-  long nphi = (2*lmax+1);
-  double dphi = 2.*pi/nphi;
-  double inv_delta_phi = 1./dphi;
-  double phioffset = phi0/dphi;
-  long ntheta = lmax+1+21;
-  double dtheta = -pi/(ntheta-21);
-  double theta0 = pi - 10*dtheta;
-  double inv_delta_theta = 1./dtheta;
-  long max_order = 19;
-  int npoints = order + 1;
-  int ioffset = order/2;
-  levels::arr<long> itheta0, itheta0_2;
-  long NThetaIndex1(0), NThetaIndex2(0);
-  levels::arr<long> lowerIndex, lowerIndex2;
-  levels::arr<long> upperIndex, upperIndex2;
-  levels::arr3<xcomplex<double> > TODAsym, TODAsym2;
-  
-  if ( ntod != 0 ) itheta0SetUp( npoints, ioffset, ntheta, theta0, inv_delta_theta, nphi, outpntarr1, ntod, NThetaIndex1, itheta0, lowerIndex, upperIndex, TODAsym );
-  
-  if ( ntod2 != 0 ) itheta0SetUp( npoints, ioffset, ntheta, theta0, inv_delta_theta, nphi, outpntarr2, ntod2, NThetaIndex2, itheta0_2, lowerIndex2, upperIndex2, TODAsym2 );
-
-  if ( CMULT_VERBOSITY > 1 ) std::cout << "DONE with NThetaIndex1 = " << NThetaIndex1 << "  and NThetaIndex2 = " << NThetaIndex2 << "  corenum = " << corenum << "  ntod = " << ntod << "  ntod2 = " << ntod2 << std::endl;
-  
-  bool fNThetaIndex=true;
-  if ( ntod != 0 && ntod2 != 0 )
     {
-      if ( itheta0[ntod-1] != itheta0_2[ntod2-1] ) fNThetaIndex = false;
-      if ( NThetaIndex1 != NThetaIndex2 ) fNThetaIndex = false;
-    }
-  if ( ntod == 0 || ntod2 == 0 ) fNThetaIndex=false;
+        std::vector<double> cosang(npsi), sinang(npsi);
+        std::vector<double> wgt1(npoints, 0.);
+        std::vector<double> wgt2(npoints, 0.);
 
-  levels::arr<double> rthetas1, rthetas2;
-  if ( NThetaIndex1 != 0 )
-    {
-      rthetas1.alloc(NThetaIndex1);
-      for (int thetaIndex=0; thetaIndex<NThetaIndex1; ++thetaIndex)
-	rthetas1[thetaIndex] = theta0 + (itheta0[ntod-1] + thetaIndex)*dtheta;
-    }
-  if ( NThetaIndex2 != 0 )
-    {
-      rthetas2.alloc(NThetaIndex2);
-      for (int thetaIndex=0; thetaIndex<NThetaIndex2; ++thetaIndex)
-	rthetas2[thetaIndex] = pi - (theta0 + (itheta0_2[ntod2-1] + thetaIndex)*dtheta);
-    }
+#pragma omp for schedule(static, 1)
+        for (int ii = lowerIndex[thetaIndex]; ii >= upperIndex[thetaIndex]; --ii) {
+            // Co-latitude, theta
+            double frac = (outpntarr[5 * ii + 1] - theta0) * inv_delta_theta;
+            frac -= itheta0[ii];
+            weight_ncm(frac, wgt1);
+            // Longitude, phi
+            frac = outpntarr[5 * ii] * inv_delta_phi - phioffset;
+            frac = levels::fmodulo(frac, double(nphi));
+            int iphi0 = int(frac) - ioffset;
+            frac -= iphi0;
+            if (iphi0 >= nphi) {
+                iphi0 -= nphi;
+            } else if (iphi0 < 0) {
+                iphi0 += nphi;
+            }
+            weight_ncm(frac, wgt2);
+            // Position angle (psi)
+            const double omega = outpntarr[5 * ii + 2] + halfpi;
+            const double sinomg = sin(omega);
+            const double cosomg = cos(omega);
+            cosang[0] = 1;
+            sinang[0] = 0;
+            for (long ipsi = 0; ipsi < npsi - 1; ++ipsi) {
+                cosang[ipsi + 1] = cosang[ipsi] * cosomg - sinang[ipsi] * sinomg;
+                sinang[ipsi + 1] = sinang[ipsi] * cosomg + cosang[ipsi] * sinomg;
+            }
+            cosang[0] = 0.5;
+            const double weight1 = 2 * wgt1[thetaoffset - itheta0[ii]];
+            for (int iphi = 0; iphi < npoints; ++iphi) {
+                const double weight = wgt2[iphi] * weight1;
+                long iphinew = iphi0 + iphi;
+                if (iphinew >= nphi) {
+                    iphinew -= nphi;
+                }
+                const xcomplex<double> *ca = &(conviqtarr[iphinew][0]);
+                double x = 0;
+                for (long ipsi = 0; ipsi < npsi; ++ipsi) {
+                    x += cosang[ipsi] * ca[ipsi].re - sinang[ipsi] * ca[ipsi].im;
+                }
+                TODValue[ii] += weight * x;
+            }
+        }
 
-  double elapsed_secs=0.;
-  clock_t begin = clock();  
+    } // end parallel region
 
-  if (fNThetaIndex)
-    conviqt_hemiscm_v4( TODAsym, TODAsym2, NThetaIndex1, rthetas1 );
-  else
-    {
-      if ( NThetaIndex1 != 0 ) conviqt_hemiscm_single( TODAsym, NThetaIndex1, rthetas1 );
-      if ( NThetaIndex2 != 0 ) conviqt_hemiscm_single( TODAsym2, NThetaIndex2, rthetas2 );
-    }
-  
-  if ( CMULT_VERBOSITY > 1 ) std::cout << "After conviqt if" << std::endl;
-  
-  clock_t end = clock();
-  elapsed_secs += double(end - begin) / CLOCKS_PER_SEC;
-  
-  if (ntod>0) for (int thetaIndex=0; thetaIndex<NThetaIndex1; ++thetaIndex) conviqt_tod_loop_v4(lowerIndex, upperIndex, outpntarr1, TODAsym, thetaIndex, itheta0, max_order, inv_delta_theta, theta0, inv_delta_phi, phioffset, nphi, ioffset, npoints, ntod, TODValue, thetaIndex);
-  if (ntod2>0) for (int thetaIndex=0; thetaIndex<NThetaIndex2; ++thetaIndex) conviqt_tod_loop_v4(lowerIndex2, upperIndex2, outpntarr2, TODAsym2, thetaIndex, itheta0_2, max_order, inv_delta_theta, theta0, inv_delta_phi, phioffset, nphi, ioffset, npoints, ntod2, TODValue2, thetaIndex);
-
-  if ( CMULT_VERBOSITY > 2 ) {
-    double maxtod = 0., maxtod2 = 0.;
-    if (ntod>0) for (long ii=0; ii<ntod; ii++) if (maxtod<abs(TODValue[ii])) maxtod=abs(TODValue[ii]);
-    if (ntod2>0) for (long ii=0; ii<ntod2; ii++) if (maxtod2<abs(TODValue2[ii])) maxtod2=abs(TODValue2[ii]);
-
-    std::cout << "corenum = " << corenum << "  elapsed_secs for conviqt = " << elapsed_secs << "   average = " << elapsed_secs << "  NThetaIndex1 = " << NThetaIndex1 << "  NThetaIndex2 = " << NThetaIndex2 << "  maxtod = " << maxtod << "  maxtod2 = " << maxtod2 << std::endl;
-  }
-  
-  if ( CMULT_VERBOSITY > 1 ) std::cout << "Leaving interpolTOD_arrTestcm_v4" << std::endl;
-}
-
-
-void convolver::interpolTOD_arrTestcm_pol_v4( levels::arr<double> &outpntarr1, levels::arr<double> &outpntarr2, levels::arr<double> &TODValue, levels::arr<double> &TODValue2, long ntod, long ntod2 )
-{
-  if ( CMULT_VERBOSITY > 1 ) std::cout << "Entered interpolTOD_arrTestcm_pol_v4" << std::endl;
-  double phi0 = halfpi;
-  //long npsi = 2*beammmax + 1;
-  long nphi = (2*lmax+1);
-  double dphi = 2.*pi/nphi;
-  double inv_delta_phi = 1./dphi;
-  double phioffset = phi0/dphi;
-  long ntheta = lmax+1+21;
-  double dtheta = -pi/(ntheta-21);
-  double theta0 = pi-10*dtheta;
-  double inv_delta_theta = 1./dtheta;
-  long max_order = 19;
-  int npoints = order+1;
-  int ioffset = order/2;
-  levels::arr<long> itheta0, itheta0_2;
-  long NThetaIndex1(0), NThetaIndex2(0);
-  levels::arr<long> lowerIndex, lowerIndex2;
-  levels::arr<long> upperIndex, upperIndex2;
-  levels::arr3<xcomplex<double> > TODAsym, TODAsym2;
-  
-  if ( ntod != 0 ) itheta0SetUp( npoints, ioffset, ntheta, theta0, inv_delta_theta, nphi, outpntarr1, ntod, NThetaIndex1, itheta0, lowerIndex, upperIndex, TODAsym );
-
-  if (ntod2 != 0 ) itheta0SetUp( npoints, ioffset, ntheta, theta0, inv_delta_theta, nphi, outpntarr2, ntod2, NThetaIndex2, itheta0_2, lowerIndex2, upperIndex2, TODAsym2 );
-
-  if ( CMULT_VERBOSITY > 1 )
-    {
-      std::cout << "DONE with NThetaIndex1 = " << NThetaIndex1 << "  and NThetaIndex2 = " << NThetaIndex2 << "  corenum = " << corenum << "  ntod = " << ntod << "  ntod2 = " << ntod2 << std::endl;
-    }
-  
-  bool fNThetaIndex = true;
-  if ( ntod != 0 && ntod2 != 0 )
-    {
-      if ( itheta0[ntod-1] != itheta0_2[ntod2-1] ) fNThetaIndex = false;
-      if ( NThetaIndex1 != NThetaIndex2) fNThetaIndex = false;
-    }
-
-  if ( ntod == 0 || ntod2 == 0 ) fNThetaIndex = false;
-
-  levels::arr<double> rthetas1, rthetas2;
-  if ( NThetaIndex1 != 0 )
-    {
-      rthetas1.alloc(NThetaIndex1);
-      for ( int thetaIndex=0; thetaIndex<NThetaIndex1; ++thetaIndex)
-	rthetas1[thetaIndex] = theta0 + (itheta0[ntod-1]+thetaIndex)*dtheta;
-    }
-  if ( NThetaIndex2 != 0 )
-    {
-      rthetas2.alloc(NThetaIndex2);
-      for ( int thetaIndex=0; thetaIndex<NThetaIndex2; ++thetaIndex )
-	rthetas2[thetaIndex] = pi - (theta0+(itheta0_2[ntod2-1]+thetaIndex)*dtheta);
-    }
-
-  double elapsed_secs=0.;
-  clock_t begin = clock();
-
-  if ( fNThetaIndex ) 
-    conviqt_hemiscm_pol_v4( TODAsym, TODAsym2, NThetaIndex1, rthetas1 );
-  else
-    {
-      if ( NThetaIndex1 != 0 ) conviqt_hemiscm_pol_single( TODAsym, NThetaIndex1, rthetas1 );
-      if ( NThetaIndex2 != 0 ) conviqt_hemiscm_pol_single( TODAsym2, NThetaIndex2, rthetas2 );
-    }
-  
-  if ( CMULT_VERBOSITY > 1 ) std::cout << "After conviqt if" << std::endl;
-
-  clock_t end = clock();
-  elapsed_secs += double(end - begin) / CLOCKS_PER_SEC;
-
-  if ( ntod > 0 )
-    for ( int thetaIndex=0; thetaIndex<NThetaIndex1; ++thetaIndex )
-      conviqt_tod_loop_pol_v5( lowerIndex, upperIndex, outpntarr1, TODAsym, thetaIndex, itheta0, max_order, inv_delta_theta, theta0, inv_delta_phi, phioffset, nphi, ioffset, npoints, ntod, TODValue, thetaIndex );
-  
-  if ( ntod2 > 0 )
-    for ( int thetaIndex=0; thetaIndex<NThetaIndex2; ++thetaIndex )
-      conviqt_tod_loop_pol_v5( lowerIndex2, upperIndex2, outpntarr2, TODAsym2, thetaIndex, itheta0_2, max_order, inv_delta_theta, theta0, inv_delta_phi, phioffset, nphi, ioffset, npoints, ntod2, TODValue2, thetaIndex );
-
-  if ( CMULT_VERBOSITY > 1 )
-    {
-      double maxtod = 0., maxtod2 = 0.;
-      if ( ntod > 0)
-	for (long ii=0; ii<ntod; ii++)
-	  if ( maxtod < abs(TODValue[ii]) )
-	    maxtod = abs( TODValue[ii] );
-      
-      if ( ntod2 >0 )
-	for ( long ii=0; ii<ntod2; ii++ )
-	  if ( maxtod2 < abs(TODValue2[ii]) )
-	    maxtod2 = abs( TODValue2[ii] );
-
-      std::cout << "corenum = " << corenum << "  elapsed_secs for conviqt = " << elapsed_secs << "   average = " << elapsed_secs << "  NThetaIndex1 = " << NThetaIndex1 << "  NThetaIndex2 = " << NThetaIndex2 << "  maxtod = " << maxtod << "  maxtod2 = " << maxtod2 << std::endl;
-      
-      std::cout << "Leaving interpolTOD_arrTestcm_pol_v4" << std::endl;
+    t_conviqt_tod_loop += mpiMgr.Wtime() - tstart;
+    if (verbosity > 5) {
+        std::cerr << corenum << " : Exiting conviqt_tod_loop" << std::endl;
     }
 }
 
 
-void convolver::conviqt_tod_loop_v4(levels::arr<long> &lowerIndex, levels::arr<long> &upperIndex, levels::arr<double> &outpntarr, levels::arr3<xcomplex<double> > &TODAsym, long thetaIndex, levels::arr<long> &itheta0, long max_order, double inv_delta_theta, double theta0, double inv_delta_phi, double phioffset, long nphi, long ioffset, long npoints, long ntod, levels::arr<double> &TODValue, long lat) {
-  
-  levels::arr2<std::complex<double> > conviqtarr;
-  try { 
-    conviqtarr.alloc(nphi,beammmax+1);
-  } catch ( std::bad_alloc & e ) {
-    std::cerr << "conviqt_tod_loop_v4 : Out of memory allocating " << nphi*(beammmax+1)*16./1024/1024 << "MB for conviqtarr" << std::endl;
-    throw;
-  }
-  
-  for (long ii=0; ii<nphi; ii++)
-    for (long jj=0; jj<beammmax+1; jj++)
-      conviqtarr[ii][jj] = TODAsym(ii, jj, lat);
-
-  // Call weight_ncm once unthreaded to make sure the auxiliary arrays are allocated
-
-  std::vector<double> wgt_temp(max_order+1,0.);
-  weight_ncm( 0., wgt_temp );
-  
-#pragma omp parallel for default(shared) schedule(static,1)
-  for (int ii=lowerIndex[thetaIndex]; ii>=upperIndex[thetaIndex]; ii--) {
-    std::vector<double> wgt1(max_order+1,0.);
-      
-    double frac = (outpntarr[5*ii+1]-theta0)*inv_delta_theta;//Note that the larger the ii the smaller frac is and the smaller itheta0[ii] is.
-    frac -= itheta0[ii];
-    weight_ncm( frac, wgt1 );
-      
-    std::vector<double> wgt2(max_order+1,0.);
-    frac = outpntarr[5*ii]*inv_delta_phi - phioffset;
-    frac = levels::fmodulo( frac, double(nphi) );
-    int iphi0 = int (frac) - ioffset;
-    frac -= iphi0;
-    if (iphi0 >= nphi) iphi0-=nphi;
-    if (iphi0 < 0) iphi0+=nphi;
-    weight_ncm( frac, wgt2 );
-      
-    double omega = outpntarr[5*ii+2]+halfpi;
-    double sinomg = sin(omega), cosomg = cos(omega);
-    std::vector<double> cosang(beammmax+1), sinang(beammmax+1);
-    cosang[0] = 1.; sinang[0] = 0.;
-    for (long psiIndex=1; psiIndex<=beammmax; psiIndex++) {
-      cosang[psiIndex] = cosang[psiIndex-1]*cosomg - sinang[psiIndex-1]*sinomg;
-      sinang[psiIndex] = sinang[psiIndex-1]*cosomg + cosang[psiIndex-1]*sinomg;
+void convolver::arrFillingcm(long ntod,
+                             levels::arr<double> &outpntarrx,
+                             levels::arr<double> &outpntarr,
+                             long offindex) {
+    /*
+      Copy North or South hemisphere data into a separate pntarr
+     */
+    if (verbosity > 5) {
+        std::cerr << corenum << " : Entering arrFillingcm" << std::endl;
     }
-    cosang[0] = 0.5;
-    double weight1 = wgt1[thetaIndex-(itheta0[ii]-itheta0[ntod-1])];
-    for (int phiIndex=0; phiIndex<npoints; ++phiIndex) {
-      double weight = wgt2[phiIndex]*weight1;
-      long newphiIndex = iphi0+phiIndex;
-      if (newphiIndex>=nphi) newphiIndex -= nphi;
-      std::complex<double> *ca = &(conviqtarr[newphiIndex][0]);
-      double *cang = &(cosang[0]);
-      double *sang = &(sinang[0]);
-      for (long psiIndex=0; psiIndex<=beammmax; psiIndex++) {
-	TODValue[ii] += 2.*weight*( (*cang)*(*ca).real() - (*sang)*(*ca).imag() );
-	++ca;
-	++cang;
-	++sang;
-      }
+    double tstart = mpiMgr.Wtime();
+    ++n_arrFillingcm;
+    outpntarrx.alloc(5 * ntod);
+    for (long ii = 0; ii < ntod; ++ii) {
+        double theta = outpntarr[5 * (ii + offindex) + 1];
+        if (theta > halfpi) {
+            theta = pi - theta;
+        }
+        outpntarrx[5 * ii] = outpntarr[5 * (ii + offindex)];
+        outpntarrx[5 * ii + 1] = theta;
+        outpntarrx[5 * ii + 2] = outpntarr[5 * (ii + offindex) + 2];
+        outpntarrx[5 * ii + 3] = outpntarr[5 * (ii + offindex) + 3];
+        outpntarrx[5 * ii + 4] = outpntarr[5 * (ii + offindex) + 4];
     }
-  }
-}
+    hpsort_arrTheta(outpntarrx);
 
-void convolver::conviqt_tod_loop_pol_v5(levels::arr<long> &lowerIndex, levels::arr<long> &upperIndex, levels::arr<double> &outpntarr, levels::arr3<xcomplex<double> > &TODAsym, long thetaIndex, levels::arr<long> &itheta0, long max_order, double inv_delta_theta, double theta0, double inv_delta_phi, double phioffset, long nphi, long ioffset, long npoints, long ntod, levels::arr<double> &TODValue, long lat)
-{
-  levels::arr2<std::complex<double> > conviqtarr;
-  try { 
-    conviqtarr.alloc(nphi,beammmax+1);
-  } catch ( std::bad_alloc & e ) {
-    std::cerr << "conviqt_tod_loop_pol_v5 : Out of memory allocating " << nphi*(beammmax+1)*16./1024/1024 << "MB for conviqtarr" << std::endl;
-    throw;
-  }
-
-  for (long ii=0; ii<nphi; ii++)
-    for (long jj=0; jj<beammmax+1; jj++)
-      conviqtarr[ii][jj] = TODAsym(ii, jj, lat);
-
-  // Call weight_ncm once unthreaded to make sure the auxiliary arrays are allocated
-
-  std::vector<double> wgt_temp(max_order+1,0.);
-  weight_ncm( 0., wgt_temp );
-  
-#pragma omp parallel for default(shared) schedule(static,1)
-  for (int ii=lowerIndex[thetaIndex]; ii>=upperIndex[thetaIndex]; ii--) {
-    std::vector<double> wgt1(max_order+1,0.);
-    
-    double frac = (outpntarr[5*ii+1]-theta0)*inv_delta_theta; // Note that the larger the ii the smaller frac is and the smaller itheta0[ii] is.                                    
-    frac -= itheta0[ii];
-    weight_ncm( frac, wgt1 );
-
-    std::vector<double> wgt2(max_order+1,0.);
-    frac = outpntarr[5*ii]*inv_delta_phi - phioffset;
-    frac = levels::fmodulo( frac, double(nphi) );
-    int iphi0 = int (frac) - ioffset;
-    frac -= iphi0;
-    if ( iphi0 >= nphi ) iphi0 -= nphi;
-    if ( iphi0 < 0 ) iphi0 += nphi;
-    weight_ncm( frac, wgt2 );
-
-    double omega = outpntarr[5*ii+2]+halfpi;
-    double sinomg = sin(omega), cosomg = cos(omega);
-    std::vector<double> cosang(beammmax+1), sinang(beammmax+1);
-    cosang[0] = 1.; sinang[0] = 0.;
-    for (long psiIndex=1; psiIndex<=beammmax; psiIndex++) {
-      cosang[psiIndex] = cosang[psiIndex-1]*cosomg - sinang[psiIndex-1]*sinomg;
-      sinang[psiIndex] = sinang[psiIndex-1]*cosomg + cosang[psiIndex-1]*sinomg;
-    }
-    cosang[0] = 0.5;
-    double weight1=wgt1[thetaIndex-(itheta0[ii]-itheta0[ntod-1])];
-    for (int phiIndex=0; phiIndex<npoints; ++phiIndex) {
-      double weight = wgt2[phiIndex]*weight1;
-      long newphiIndex=iphi0+phiIndex;
-      if ( newphiIndex >= nphi ) newphiIndex -= nphi;
-      std::complex<double> *ca = &(conviqtarr[newphiIndex][0]);
-      double *cang = &(cosang[0]);
-      double *sang = &(sinang[0]);
-      for (long psiIndex=0; psiIndex<=beammmax; psiIndex++) {
-	TODValue[ii] += 2.*weight*( (*cang)*(*ca).real() - (*sang)*(*ca).imag() );
-	++ca;
-	++cang;
-	++sang;
-      }
-    }
-  }
-}
-
-
-void convolver::arrsizecounter( levels::arr<long> &effM, long &numberofdlms )
-{
-  for (long ii=0; ii<=lmax; ii++)
-    {
-      long beamupper(beammmax);
-      if (ii<beammmax) beamupper = ii;
-      long mskyUpper=(ii<effM[ii]) ? ii : effM[ii];
-      for(long beamIndex = 0; beamIndex <= beamupper; beamIndex++)
-	for (long msky = 0; msky <= mskyUpper; msky++) 
-	  {
-	    numberofdlms += 2;
-	  }
+    t_arrFillingcm += mpiMgr.Wtime() - tstart;
+    if (verbosity > 5) {
+        std::cerr << corenum << " : Exiting arrFillingcm" << std::endl;
     }
 }
 
 
-void convolver::arrFillingcm_v2( long ntod, levels::arr<double> &timeTest_arr, levels::arr<double> &outpntarrx, levels::arr<double> &outpntarr, long offindex )
-{
-  timeTest_arr.alloc(ntod);
-  outpntarrx.alloc(5*ntod);
-  for (long ii=0; ii<ntod; ii++)
-    {
-      double theta = (outpntarr[5*(ii+offindex)+1]>halfpi) ? pi-outpntarr[5*(ii+offindex)+1]: outpntarr[5*(ii+offindex)+1];
-      outpntarrx[5*ii] = outpntarr[5*(ii+offindex)];
-      outpntarrx[5*ii+1] = theta;
-      outpntarrx[5*ii+2] = outpntarr[5*(ii+offindex)+2];
-      outpntarrx[5*ii+3] = outpntarr[5*(ii+offindex)+3];
-      outpntarrx[5*ii+4] = outpntarr[5*(ii+offindex)+4];
+int convolver::convolve(pointing &pntarr, bool calibrate) {
+
+    mpiMgr.barrier();
+
+    if (verbosity > 5 or (corenum == 0 and verbosity > 0)) {
+        std::cerr << corenum << " : Convolving : pol = " << pol
+                  << " lmax = " << lmax
+                  << " beammmax = " << beammmax
+                  << " order = " << order
+                  << std::endl;
     }
-  hpsort_arrTheta(outpntarrx);
-  for (long ii=0; ii<ntod; ii++) timeTest_arr[ii] = outpntarrx[5*ii+4];
+
+    double tstart = mpiMgr.Wtime(), t1;
+    ++n_convolve;
+
+    const long totsize = pntarr.size() / 5;
+
+    // Assign a running index across the communicator to the last column of pntarr
+    // It is needed to collect the convolved data.
+    long my_offset = 0;
+    int err = MPI_Scan(&totsize, &my_offset, 1, MPI_LONG, MPI_SUM, mpiMgr.comm());
+    if (err) throw std::runtime_error("Error scanning total TOD size");
+    my_offset -= totsize;
+    for (long ii = 0; ii < totsize; ++ii) {
+        pntarr[5 * ii + 4] = my_offset + ii;
+    }
+
+    // Check the angles for conformity
+
+    for (long i = 0; i < totsize; ++i) {
+        double theta = pntarr[5 * i + 1];
+        if (theta < 0 || theta > pi) {
+            throw std::runtime_error("convolver::convolve: Illegal theta: " +
+                                     std::to_string(theta) + " not in 0..pi");
+        }
+    }
+
+    // distribute the co-latitudes.
+
+    levels::arr<double> corethetaarr(cores);
+    distribute_colatitudes(pntarr, totsize, corethetaarr);
+
+    long outBetaSegSize;
+    levels::arr<int> inBetaSeg, outBetaSeg;
+    levels::arr<int> inBetaSegAcc, outBetaSegAcc;
+    levels::arr<double> pntarr2, outpntarr;
+    levels::arr<int> inOffset, outOffset;
+    // Make sure theta=pi doesn't break anything
+    const double ratiodeltas = (halfpi + 1e-10) / cores;
+
+    fillingBetaSeg(pntarr, totsize, ratiodeltas, corethetaarr, inBetaSeg);
+
+    mpiMgr.barrier();
+    t1 = mpiMgr.Wtime();
+    mpiMgr.all2all(inBetaSeg, outBetaSeg);
+    t_alltoall += mpiMgr.Wtime() - t1;
+    ++n_alltoall;
+
+    for (long ii = 0; ii < totsize; ++ii) {
+        // The signal column in pntarr is replaced with a
+        // local row number to allow reordering
+        pntarr[5 * ii + 3] = ii;
+    }
+
+    todRedistribution5cm(pntarr, inBetaSeg, outBetaSeg, inBetaSegAcc, outBetaSegAcc,
+                         outBetaSegSize, pntarr2, totsize, inOffset, outOffset,
+                         ratiodeltas, corethetaarr);
+
+    pntarr.dealloc();
+    std::vector<long> orig_order(totsize);
+    if (totsize != 0) {
+        t1 = mpiMgr.Wtime();
+        for(long ii = 0; ii < totsize; ++ii) {
+            orig_order[ii] = long(pntarr2[5 * ii + 3] + .5);
+        }
+    }
+
+    // Redistribute the data from pntarr2 to outpntarr
+
+    if (totsize != 0 || outBetaSegSize != 0) {
+        mpiMgr.barrier();
+        t1 = mpiMgr.Wtime();
+        mpiMgr.all2allv(pntarr2, inBetaSeg, inOffset,
+                        outpntarr, outBetaSeg, outOffset, outBetaSegSize);
+        t_alltoall += mpiMgr.Wtime() - t1;
+        ++n_alltoall;
+    }
+
+    if (totsize > 0) {
+        pntarr2.dealloc();
+    }
+
+    // Count elements on Northern (ntod1) and Southern (ntod2) hemisphere
+
+    long ntod = outBetaSegSize / 5;
+    long ntod1 = 0, ntod2 = 0;
+    for (long ii = 0; ii < ntod; ++ii) {
+        if (outpntarr[5 * ii + 1] < halfpi) {
+            ++ntod1;
+        } else {
+            ++ntod2;
+        }
+        // The signal column in outpntarr is replaced with a
+        // local row number to allow reordering
+        outpntarr[5 * ii + 3] = ii;
+    }
+
+    std::vector<long> old_order(ntod);
+    if (ntod != 0) {
+        t1 = mpiMgr.Wtime();
+        hpsort_arrTheta(outpntarr); // Sort according to latitude
+        t_sort += mpiMgr.Wtime() - t1;
+        ++n_sort;
+        for(long ii = 0; ii < ntod; ++ii) {
+            old_order[ii] = long(outpntarr[5 * ii + 3] + .5);
+        }
+    }
+
+    // Run the convolution
+
+    todgen(ntod1, ntod2, outpntarr);
+
+    // Restore the time-based order in outpntarr so we can re-shuffle
+    // the TOD back to the original owners.  We need to make a copy of
+    // the array for the reorder.
+
+    if (ntod != 0) {
+        t1 = mpiMgr.Wtime();
+        levels::arr<double> outpntarr_temp(5 * ntod);
+        memcpy(&(outpntarr_temp[0]), &(outpntarr[0]), sizeof(double) * ntod * 5);
+        for(long new_row = 0; new_row < ntod; ++new_row) {
+            long old_row = old_order[new_row];
+            memcpy(&(outpntarr[5 * old_row]),
+                   &(outpntarr_temp[5 * new_row]),
+                   sizeof(double) * 5);
+        }
+        outpntarr_temp.dealloc();
+        old_order.clear();
+        t_sort += mpiMgr.Wtime() - t1;
+        ++n_sort;
+    }
+
+    // Communicate the pointing and TOD to the original owners
+
+    if (totsize != 0 || ntod != 0) {
+        mpiMgr.barrier();
+        t1 = mpiMgr.Wtime();
+        mpiMgr.all2allv(outpntarr, outBetaSeg, outOffset, pntarr,
+                        inBetaSeg, inOffset, 5 * totsize);
+        t_alltoall += mpiMgr.Wtime() - t1;
+        ++n_alltoall;
+    }
+
+    if (ntod != 0) {
+        outpntarr.dealloc();
+    }
+
+    // Now restore the original, time-based order in pntarr
+
+    if (totsize != 0) {
+        t1 = mpiMgr.Wtime();
+        levels::arr<double> pntarr_temp(5 * totsize);
+        memcpy(&(pntarr_temp[0]), &(pntarr[0]), sizeof(double) * totsize * 5);
+        for(long new_row = 0; new_row < totsize; ++new_row) {
+            long old_row = orig_order[new_row];
+            memcpy(&(pntarr[5 * old_row]),
+                   &(pntarr_temp[5 * new_row]),
+                   sizeof(double) * 5);
+        }
+        pntarr_temp.dealloc();
+        orig_order.clear();
+        t_sort += mpiMgr.Wtime() - t1;
+        ++n_sort;
+    }
+
+    if (totsize != 0 && calibrate) {
+        double calibration = 2. / (1. + d->get_epsilon());
+        for (long ii = 0; ii < totsize; ++ii) {
+            // Insert convolved TOD into the output array
+            pntarr[5 * ii + 3] *= calibration;
+        }
+    }
+
+    t_convolve += mpiMgr.Wtime() - tstart;
+    if (verbosity > 0) {
+        report_timing();
+    }
+
+    return 0;
 }
 
-
-int convolver::convolve( pointing & pntarr, bool calibrate ) {
-
-  int lmax_sky = s->get_lmax();
-  int lmax_beam = b->get_lmax();
-  if (lmax < 0) {
-    lmax = lmax_sky < lmax_beam ? lmax_sky : lmax_beam;
-  } else if ( lmax > lmax_sky || lmax > lmax_beam ) {
-    throw std::runtime_error( "Convolver lmax exceeds input expansion order." );
-  }
-
-  int mmax_beam = b->get_mmax();
-  if (beammmax < 0) {
-    beammmax = mmax_beam;
-  } else if ( beammmax > mmax_beam ) {
-    throw std::runtime_error( "Convolver mmax exceeds input expansion order." );
-  }
-
-  long totsize = pntarr.size()/5;
-
-  // Assign a running index across the communicator to the last column of pntarr
-  // It is needed to collect the convolved data.
-  long my_offset=0;
-  int err = MPI_Scan( &totsize, &my_offset, 1, MPI_LONG, MPI_SUM, mpiMgr.comm() );
-  if ( err != 0 ) throw std::runtime_error("Error scannign total TOD size");
-  my_offset -= totsize;
-  for (long ii=0; ii<totsize; ii++) pntarr[5*ii+4] = my_offset + ii;
-
-  long ntod=0, ntod2=0, outBetaSegSize;
-  levels::arr<int> inBetaSeg, inBetaSegFir, inBetaSegSec, outBetaSeg;
-  inBetaSeg.alloc(cores);
-  inBetaSeg.fill(0);
-  inBetaSegFir.alloc(cores);
-  inBetaSegFir.fill(0);
-  inBetaSegSec.alloc(cores);
-  inBetaSegSec.fill(0);
-  levels::arr<int> inBetaSegAcc, outBetaSegAcc;
-  levels::arr<double> pntarr2, outpntarr;
-  levels::arr<int> inOffset, outOffset;
-  double ratiodeltas=(halfpi+1e-10)/cores; // Make sure theta=pi doesn't break anything
-  double dtheta, newtheta, thetaini=halfpi;
-  double countdeltatheta=0.;
-  levels::arr<double> corethetaarr(cores), coredthetaarr(cores);
-  levels::arr<double> dbeta;
-
-  // Check the angles for conformity
-
-  for ( long i=0; i<totsize; ++i ) {
-    double theta = pntarr[ 5*i + 1 ];
-    if ( theta < 0 || theta > pi ) throw std::runtime_error( "convolver::convolve: Illegal theta: " + std::to_string(theta) + " not in 0..pi" );
-  }
-
-  // distribute the latitudes
-
-  for ( long ii=cores-1; ii>=0; ii-- ) 
-    {
-      if ( thetaini > 0.18 )
-	{
-	  thetaDeltaThetacm( thetaini, ii, newtheta, dtheta );
-	}
-      else
-	{
-	  long iival = ii;
-	  deltaTheta2( iival, thetaini, dbeta );
-	  for ( long jj=ii; jj>=0; jj-- ) 
-	    {
-	      newtheta -= dbeta[jj];
-	      corethetaarr[jj] = newtheta;
-	      coredthetaarr[jj] = dbeta[jj];
-	      thetaini = newtheta;
-	    }
-	  newtheta = 0.;
-	  corethetaarr[0] = 0.;
-	  break;
-	}
-      corethetaarr[ii] = newtheta;
-      coredthetaarr[ii] = dtheta;
-      thetaini = newtheta;
-      countdeltatheta += sin(newtheta + dtheta/2.)*dtheta;
-    }
-  fillingBetaSeg( pntarr, totsize, ratiodeltas, corethetaarr, inBetaSeg );
-  mpiMgr.all2all( inBetaSeg, outBetaSeg );
-
-  todRedistribution5cm( pntarr, inBetaSeg, outBetaSeg, inBetaSegAcc, outBetaSegAcc, outBetaSegSize, pntarr2, totsize, inOffset, outOffset, ratiodeltas, corethetaarr );
-
-  // Store input TOD for comparison
-
-  levels::arr<double> todtmp;
-  if ( totsize > 0 )
-    {
-      todtmp.alloc( totsize );
-      for (long ii=0; ii<totsize; ii++) todtmp[ii] = pntarr[5*ii+3];
-      pntarr.dealloc();
-    }
-
-  // Redistribute the data form pntarr2 to outpntarr
-
-  if ( totsize !=0 || outBetaSegSize != 0 ) mpiMgr.all2allv( pntarr2, inBetaSeg, inOffset, outpntarr, outBetaSeg, outOffset, outBetaSegSize );
-
-  if ( totsize > 0 ) pntarr2.dealloc();
-
-  // Count elements on Northern (ntod) and Southern (ntod2) hemisphere
-  
-  long nthetaCount(0);
-  long nthetaCount2(0);
-  long csmall(0), cbig(0);
-  for (long ii=0; ii<outBetaSegSize/5; ii++)
-    {
-      if (outpntarr[5*ii+1] < halfpi)
-	{
-	  nthetaCount++; 
-	  if (outpntarr[5*ii+1] <= 0) csmall++; 
-	}
-      else 
-	{
-	  nthetaCount2++;
-	  if (outpntarr[5*ii+1] >= pi) cbig++; 
-	}
-      outpntarr[5*ii+3] = ii*1.; // The signal column in outpntarr is replaced with a local row number to allow reordering
-    }
-  ntod = nthetaCount; 
-  ntod2 = nthetaCount2;
-
-  if ( outBetaSegSize != 0 ) hpsort_arrTheta(outpntarr); // Sort according to latitude
-
-  // Run the convolution
-
-  clock_t begin = clock();
-
-  levels::arr<double> todTest_arr, todTest_arr2, timeTest_arr, timeTest_arr2;
-  
-  todgen_v4( ntod, ntod2, todTest_arr, timeTest_arr, todTest_arr2, timeTest_arr2, outpntarr );
-
-  if ( CMULT_VERBOSITY > 1 )
-    {
-      clock_t end = clock();
-      double elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
-      levels::arr<double> tarr(cores,elapsed_secs), toutarr;
-      levels::arr<long> arrcores(cores); for (long ii=0; ii<cores; ii++) arrcores[ii] = ii;
-      levels::arr<long> outbetasegsizearr(cores,outBetaSegSize), obt;
-      mpiMgr.all2all( tarr, toutarr );
-      mpiMgr.all2all( outbetasegsizearr, obt );
-      double maxtint=0;
-      double mintint=1.e30;
-      long corevaluemax, corevaluemin;
-      for (long ii=0; ii<cores; ii++)
-	{
-	  if (toutarr[ii] > maxtint) { maxtint = toutarr[ii]; corevaluemax = ii;}
-	  if (toutarr[ii] < mintint) { mintint = toutarr[ii]; corevaluemin = ii;}
-	}
-      
-      std::cout << "corenum = " << corenum << "   elapsed_secs = " << elapsed_secs << std::endl;
-      if ( corenum == 0 ) std::cout << "maxtint = " << maxtint << "   mintint = " << mintint << "   corevaluemax = " << corevaluemax << "   corevaluemin = " << corevaluemin << std::endl;
-      
-      // Sort task IDs in arrcores according to execution time in toutarr
-      
-      hpsort_DL( toutarr, arrcores );
-      
-      if ( corenum == 0 ) for ( long ii=0; ii<cores; ii++ ) std::cout << "toutarr = " << toutarr[ii] <<"   corenum = " << arrcores[ii] <<"   outBetaSegSize = " << obt[arrcores[ii]] << std::endl;
-    }
-  
-  if ( outBetaSegSize != 0 ) hpsort_arrTOD( outpntarr ); // Sort outpntarr according to the 4th column
-  if ( totsize != 0 || outBetaSegSize != 0 ) mpiMgr.all2allv( outpntarr, outBetaSeg, outOffset, pntarr, inBetaSeg, inOffset, 5*totsize );
-
-  if ( outBetaSegSize != 0 ) outpntarr.dealloc();
-  if ( totsize != 0 ) hpsort_arrTime( pntarr ); // Sort according to the 5th column, time stamp
-
-  levels::arr<double> todAll;
-  preReorderingStep( ntod, ntod2, todAll, todTest_arr, todTest_arr2 );
-  levels::arr<double> timeAll;
-  preReorderingStep( ntod, ntod2, timeAll, timeTest_arr, timeTest_arr2 );
-
-  if ( outBetaSegSize != 0 ) hpsort_DDcm( timeAll, todAll ); // sort time and signal according to time
-
-  for ( long ii=0; ii<cores; ii++ )
-    {
-      inBetaSeg[ii] = inBetaSeg[ii]/5;
-      outBetaSeg[ii] = outBetaSeg[ii]/5;
-      inOffset[ii] = inOffset[ii]/5;
-      outOffset[ii] = outOffset[ii]/5;
-    }
-
-  // collect the convolved TOD
-
-  levels::arr<double> outtodarr, outnumarr;
-  if ( totsize != 0 || outBetaSegSize != 0 ) mpiMgr.all2allv( todAll, outBetaSeg, outOffset, outtodarr, inBetaSeg, inOffset, totsize );
-  if ( totsize != 0 || outBetaSegSize != 0 ) mpiMgr.all2allv( timeAll, outBetaSeg, outOffset, outnumarr, inBetaSeg, inOffset, totsize );
-
-  if ( outBetaSegSize != 0 ) todAll.dealloc();
-  if ( outBetaSegSize != 0 ) timeAll.dealloc();
-
-  if ( CMULT_VERBOSITY > 1 )
-    {
-      double maxtodall(0), mintodall(1e10);
-
-      for (long ii=0; ii< totsize; ii++)
-	{
-	  maxtodall = (maxtodall < outtodarr[ii]) ? outtodarr[ii] : maxtodall;
-	  mintodall = (mintodall > outtodarr[ii]) ? outtodarr[ii] : mintodall;
-	}
-
-      if (totsize > 0) std::cout << "maxtodall = " << maxtodall  << "   mintodall = " << mintodall << "   outtodarr.size()/totsize = " << outtodarr.size()/totsize*1. << std::endl;
-    }
-
-  double calibration=1.;
-  if ( calibrate ) calibration = 2. / ( 1. + d->get_epsilon() );
-
-  if ( totsize > 0 )
-    {
-      hpsort_DDcm( outnumarr, outtodarr ); // Sort time and signal according to time
-      outnumarr.dealloc();
-      double maxtoddiff=0.;
-      for ( long ii=0; ii<totsize; ii++ )  {
-	pntarr[5*ii+3] = calibration*outtodarr[ii]; // Insert convolved TOD into the output array
-	if ( CMULT_VERBOSITY > 1 )
-	  {
-	    maxtoddiff = (abs(todtmp[ii]-pntarr[5*ii+3]) > maxtoddiff) ? abs(todtmp[ii]-pntarr[5*ii+3]) : maxtoddiff;
-	    if (ii%100000 == 0) std::cout << "todtmp[ii] = " << todtmp[ii] << "  pntarr[5*ii+3] = " << pntarr[5*ii+3] << "  difference = " << abs(todtmp[ii]-pntarr[5*ii+3]) << std::endl;
-	  }
-      }
-      if ( CMULT_VERBOSITY > 1 ) std::cout << "  corenum = " << corenum << "   maxtoddiff = " << maxtoddiff << "   calibration = " << calibration << std::endl;
-    }
-
-  return 0;
+void convolver::report_timing() {
+    if (corenum == 0)
+        std::cerr << "Conviqt::convolve timing:" << std::endl;
+    timing_line(std::string("convolve"), t_convolve, n_convolve);
+    timing_line(std::string("    distribute_colatitudes"),
+                t_distribute_colatitudes, n_distribute_colatitudes);
+    timing_line(std::string("    fillingBetaSeg"),
+                t_fillingBetaSeg, n_fillingBetaSeg);
+    timing_line(std::string("    todRedistribution5cm"),
+                t_todRedistribution5cm, n_todRedistribution5cm);
+    timing_line(std::string("    todgen"), t_todgen, n_todgen);
+    timing_line(std::string("        arrFillingcm"), t_arrFillingcm, n_arrFillingcm);
+    timing_line(std::string("        interpolTOD"), t_interpolTOD, n_interpolTOD);
+    timing_line(std::string("            itheta0SetUp"), t_itheta0SetUp, n_itheta0SetUp);
+    timing_line(std::string("                ithetacalc"), t_ithetacalc, n_ithetacalc);
+    timing_line(std::string("            conviqt_hemiscm"),
+                t_conviqt_hemiscm, n_conviqt_hemiscm);
+    timing_line(std::string("            conviqt_hemiscm_pol"),
+                t_conviqt_hemiscm_pol, n_conviqt_hemiscm_pol);
+    timing_line(std::string("                wigner_init"), t_wigner_init, n_wigner_init);
+    timing_line(std::string("                wigner_prepare"),
+                t_wigner_prepare, n_wigner_prepare);
+    timing_line(std::string("                todAnnulus"),  t_todAnnulus, n_todAnnulus);
+    timing_line(std::string("                    alltoall_datacube"),
+                t_alltoall_datacube, n_alltoall_datacube);
+    timing_line(std::string("            conviqt_tod_loop"),
+                t_conviqt_tod_loop, n_conviqt_tod_loop);
+    timing_line(std::string("    alltoall"), t_alltoall, n_alltoall);
+    timing_line(std::string("    sort TOD"), t_sort, n_sort);
 }
+
+void convolver::timing_line(std::string label, double timer, long counter) {
+    double tmin, tmax;
+    mpiMgr.reduceRaw<double>(&timer, &tmin, 1, mpiMgr.Min);
+    mpiMgr.reduceRaw<double>(&timer, &tmax, 1, mpiMgr.Max);
+    double tmean, tstd;
+    mpiMgr.allreduceRaw<double>(&timer, &tmean, 1, mpiMgr.Sum);
+    tmean /= cores;
+    double tsquare = ((timer - tmean) * (timer - tmean));
+    mpiMgr.reduceRaw<double>(&tsquare, &tstd, 1, mpiMgr.Sum);
+    tstd = sqrt(tstd / cores);
+
+    long cmin, cmax;
+    mpiMgr.reduceRaw<long>(&counter, &cmin, 1, mpiMgr.Min);
+    mpiMgr.reduceRaw<long>(&counter, &cmax, 1, mpiMgr.Max);
+    double cmean, cstd;
+    double dcounter = counter;
+    mpiMgr.allreduceRaw<double>(&dcounter, &cmean, 1, mpiMgr.Sum);
+    cmean /= cores;
+    double csquare = ((counter - cmean) * (counter - cmean));
+    mpiMgr.reduceRaw<double>(&csquare, &cstd, 1, mpiMgr.Sum);
+    cstd = sqrt(cstd / cores);
+
+    if (corenum == 0 && cmax > 0) {
+        fprintf(stderr,
+                "%-40s %8.2f < %8.2f +- %8.2f < %8.2f "
+                "(%8ld < %10.1f +- %10.1f < %8ld)\n",
+                label.c_str(),
+                tmin, tmean, tstd, tmax,
+                cmin, cmean, cstd, cmax);
+        //std::cerr << label << " : " << tmin
+        //          << " < " << tmean
+        //          << " +- " << tstd
+        //          << " < " << tmax << std::endl;
+    }
+}
+
 
 } // namespace conviqt
