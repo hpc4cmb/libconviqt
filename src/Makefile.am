@@ -60,4 +60,4 @@ test_libcconviqt_LDADD = libconviqt.la $(AM_LIBS)
 nodist_EXTRA_test_libcconviqt_SOURCES = dummy.cpp
 
 
-TESTS = test_libconviqt test_libconviqt_mpi test_libcconviqt test_libconviqt.py
+TESTS = test_libconviqt test_libconviqt_mpi test_libcconviqt
