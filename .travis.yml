@@ -1,0 +1,180 @@
+# We set the language to python, so that we can more easily specify our
+# build matrix.  We simply apt install the compiled dependencies.
+language: python
+
+matrix:
+  include:
+    # GCC 4.8 + Python 2.7
+    - os: linux
+      dist: trusty
+      sudo: false
+      addons:
+        apt:
+          packages:
+            - build-essential
+            - gcc
+            - g++
+            - autoconf
+            - automake
+            - m4
+            - libtool
+            - libmpich-dev
+            - cfitsio-dev
+            - pkg-config
+      env:
+        - MATRIX_EVAL="export CC=$(which gcc) && export CXX=$(which g++)"
+      python: 2.7
+    # GCC 4.8 + Python 3.6
+    - os: linux
+      dist: trusty
+      sudo: false
+      addons:
+        apt:
+          packages:
+            - build-essential
+            - gcc
+            - g++
+            - autoconf
+            - automake
+            - m4
+            - libtool
+            - libmpich-dev
+            - cfitsio-dev
+            - pkg-config
+      env:
+        - MATRIX_EVAL="export CC=$(which gcc) && export CXX=$(which g++)"
+      python: 3.6
+    # GCC 4.9
+    - os: linux
+      dist: trusty
+      sudo: false
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - build-essential
+            - gcc-4.9
+            - autoconf
+            - automake
+            - m4
+            - libtool
+            - libmpich-dev
+            - cfitsio-dev
+            - pkg-config
+      env:
+        - MATRIX_EVAL="export CC=$(which gcc-4.9) && export CXX=$(which g++-4.9)"
+      python: 3.6
+    # GCC 5
+    - os: linux
+      dist: trusty
+      sudo: false
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - build-essential
+            - gcc-5
+            - autoconf
+            - automake
+            - m4
+            - libtool
+            - libmpich-dev
+            - cfitsio-dev
+            - pkg-config
+      env:
+        - MATRIX_EVAL="export CC=$(which gcc-5) && export CXX=$(which g++-5)"
+      python: 3.6
+    # GCC 6
+    - os: linux
+      dist: trusty
+      sudo: false
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - build-essential
+            - gcc-6
+            - autoconf
+            - automake
+            - m4
+            - libtool
+            - libmpich-dev
+            - cfitsio-dev
+            - pkg-config
+      env:
+        - MATRIX_EVAL="export CC=$(which gcc-6) && export CXX=$(which g++-6)"
+      python: 3.6
+    # GCC 7
+    - os: linux
+      dist: trusty
+      sudo: false
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - build-essential
+            - gcc-7
+            - autoconf
+            - automake
+            - m4
+            - libtool
+            - libmpich-dev
+            - cfitsio-dev
+            - pkg-config
+      env:
+        - MATRIX_EVAL="export CC=$(which gcc-7) && export CXX=$(which g++-7)"
+      python: 3.6
+
+# Set up MPI and mpi4py
+
+before_install:
+    # set the compilers
+    - eval "${MATRIX_EVAL}"
+    # Information about the compilers
+    - echo "CC = ${CC} $(${CC} -dumpversion)"
+    - echo "FC = ${FC} $(${FC} -dumpversion)"
+    # set the MPICH underlying compilers
+    - export MPICC=$(which mpicc)
+    - export MPIFC=$(which mpif90)
+    - export MPICH_CC=${CC}
+    - export MPICH_FC=${FC}
+    # information about the MPI compilers
+    - echo "MPICC = ${MPICC}"
+    - echo "MPIFC = ${MPIFC}"
+    - echo "[MPI] CC = ${MPICC} $(${MPICC} -dumpversion)"
+    - echo "[MPI] FC = ${MPIFC} $(${MPIFC} -dumpversion)"
+    - ${MPICC} -v
+    - ${MPIFC} -v
+    # miniconda install
+    - wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
+    - bash miniconda.sh -b -p $HOME/miniconda
+    - export PATH="$HOME/miniconda/bin:$PATH"
+    - hash -r
+    - conda config --set always_yes yes --set changeps1 no
+    - conda update -q conda
+    # Useful for debugging any issues with conda
+    - conda info -a
+    - conda install -c conda-forge numpy healpy pip
+    - pip install mpi4py
+
+# Skip this
+
+install:
+    # build
+    - ./autogen.sh
+    - export CFLAGS="-O0 -g -fPIC"
+    - export CXXFLAGS="-O0 -g -fPIC"
+    - ./configure --prefix=$HOME/miniconda
+    - make
+    - make install
+    - cd python && python setup.py install && cd ..
+
+# Configure, build, and run tests
+
+script:
+    - make check
+    - cd python && python setup.py test && cd ..

@@ -39,4 +39,6 @@ Makefile.in
 
 *~
 *.o
-
+__pycache__
+*.pyc
+/python/build
