@@ -268,15 +268,6 @@ private :
     void timing_line(std::string label, double timer, long counter);
 };
 
-// wignercalc.cpp
-
-double xpow(int expo, double val);
-void wignerCalc(tsize n, tsize mmax, double theta, levels::arr2<double> &d);
-void wignerCalcGeneral(tsize n, tsize mmax, double theta, levels::arr2<double> &d);
-void wignerCalcHalfpi(tsize n, tsize mmax, levels::arr2<double> &d);
-double wignerCalc00_halfpi(tsize n);
-double wignerCalc00(double theta, tsize n);
-
 // conviqt_util.cpp
 
 void sift_down_DL(levels::arr<double> &ra, levels::arr<long> &brr, const int l, const int r);

@@ -34,7 +34,6 @@ libconviqt_la_SOURCES = \
     conviqt_math.cpp \
     conviqt_io.cpp \
     conviqt_util.cpp \
-    wignercalc.cpp \
     cconviqt.cpp
 
 libconviqt_la_LIBADD = \
