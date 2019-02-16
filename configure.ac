@@ -18,7 +18,7 @@ dnl | current, and set revision to 0.  If any interfaces have been added
 dnl | since the last public release, then increment age.  If any interfaces 
 dnl | have been removed since the last public release, then set age to 0.
 dnl +-------------------------
-LIBCONVIQT_LT_VERSION="2:1:0"
+LIBCONVIQT_LT_VERSION="3:0:0"
 AC_SUBST(LIBCONVIQT_LT_VERSION)
 
 dnl +---------------------
