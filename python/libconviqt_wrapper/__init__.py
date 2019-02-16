@@ -87,9 +87,11 @@ class Beam(object):
 
     def __del__(self):
         try:
-            _conviqt.conviqt_beam_del(self._beam)
-        except:
-            pass
+            err = _conviqt.conviqt_beam_del(self._beam)
+            if err != 0:
+                raise RuntimeError("Unknown error")
+        except Exception as e:
+            print('WARNING: failed to free conviqt beam: "{}"'.format(e), flush=True)
 
     def lmax(self):
         return _conviqt.conviqt_beam_lmax(self._beam)
@@ -147,9 +149,11 @@ class Sky(object):
 
     def __del__(self):
         try:
-            _conviqt.conviqt_sky_del(_sky)
-        except:
-            pass
+            err = _conviqt.conviqt_sky_del(self._sky)
+            if err != 0:
+                raise RuntimeError("Unknown error")
+        except Exception as e:
+            print('WARNING: failed to free conviqt sky: "{}"'.format(e), flush=True)
 
     def lmax(self):
         return _conviqt.conviqt_sky_lmax(self._sky)
@@ -197,9 +201,13 @@ class Detector(object):
 
     def __del__(self):
         try:
-            _conviqt.conviqt_detector_del.restype(self._det)
-        except:
-            pass
+            err = _conviqt.conviqt_detector_del.restype(self._det)
+            if err != 0:
+                raise RuntimeError("Unknown error")
+        except Exception as e:
+            print(
+                'WARNING: failed to free conviqt detector: "{}"'.format(e), flush=True
+            )
 
     def set_epsilon(self, epsilon):
         err = _conviqt.conviqt_detector_set_epsilon(self._det, epsilon)
@@ -249,9 +257,13 @@ class Pointing(object):
 
     def __del__(self):
         try:
-            _conviqt.conviqt_pointing_del(self._pnt)
-        except:
-            pass
+            err = _conviqt.conviqt_pointing_del(self._pnt)
+            if err != 0:
+                raise RuntimeError("Unknown error")
+        except Exception as e:
+            print(
+                'WARNING: failed to free conviqt pointing: "{}"'.format(e), flush=True
+            )
 
     def alloc(self, nrow):
         self._nrow = nrow
@@ -309,9 +321,13 @@ class Convolver(object):
 
     def __del__(self):
         try:
-            _conviqt.conviqt_convolver_del(self._conv)
-        except:
-            pass
+            err = _conviqt.conviqt_convolver_del(self._conv)
+            if err != 0:
+                raise RuntimeError("Unknown error")
+        except Exception as e:
+            print(
+                'WARNING: failed to free conviqt convolver: "{}"'.format(e), flush=True
+            )
 
     def convolve(self, pointing, calibrate=True):
         err = _conviqt.conviqt_convolver_convolve(self._conv, pointing._pnt, calibrate)
