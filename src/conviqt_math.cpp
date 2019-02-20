@@ -56,20 +56,25 @@ namespace conviqt {
 beam::beam(long beamlmax, long beammmax, bool pol,
            std::string infile_beam,
            MPI_Comm comm=MPI_COMM_WORLD) {
+    normalized_ = false;
     read(beamlmax, beammmax, pol, infile_beam, comm);
 }
 
+
 double beam::normalize() {
     /*
-      Scale the beam expansion to integrate to 0.5 over the sphere
+      Scale the intensity beam expansion to integrate to unity over the sphere
     */
+    if (normalized_) {
+        return 1.0;
+    }
     double scale = 0;
     if (blmT_.Lmax() >= 0) {
         double b00 = blmT_(0, 0).re;
         double current_norm = 2 * b00 / sqrt(1 / pi);
-        scale = 0.5 / current_norm;
+        scale = 1.0 / current_norm;
         if (verbosity > 1) {
-            std::cerr << "Normalizing beam from " << current_norm << " to 0.5 with "
+            std::cerr << "Normalizing beam from " << current_norm << " to 1.0 with "
                       << scale << std::endl;
         }
         blmT_.Scale(scale);
@@ -78,6 +83,7 @@ double beam::normalize() {
             blmC_.Scale(scale);
         }
     }
+    normalized_ = true;
     return scale;
 }
 
@@ -1644,8 +1650,12 @@ int convolver::convolve(pointing &pntarr, bool calibrate) {
         ++n_sort;
     }
 
-    if (totsize != 0 && calibrate) {
+    if (totsize != 0 && calibrate && !b->normalized()) {
         double calibration = 2. / (1. + d->get_epsilon());
+        if (mpiMgr.master() and verbosity > 0) {
+            std::cerr << "Calibrating TOD with " << calibration
+                      << " for unit intensity response" << std::endl;
+        }
         for (long ii = 0; ii < totsize; ++ii) {
             // Insert convolved TOD into the output array
             pntarr[5 * ii + 3] *= calibration;

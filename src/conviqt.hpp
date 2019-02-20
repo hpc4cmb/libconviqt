@@ -37,7 +37,7 @@ namespace conviqt {
 
 class beam {
 public :
-    beam() {}
+    beam() { normalized_ = false; }
     beam(long beamlmax, long beammmax, bool pol,
          std::string infile_beam, MPI_Comm comm);
     int read(long beamlmax, long beammmax, bool pol,
@@ -49,8 +49,10 @@ public :
     int get_lmax(void) { return lmax; }
     int get_mmax(void) { return mmax; }
     double normalize(void);
+    bool normalized() { return normalized_; }
 private :
     Alm< xcomplex<float> > blmT_, blmG_, blmC_;
+    bool normalized_;
     long lmax, mmax;
     bool pol;
     int verbosity = 0;

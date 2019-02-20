@@ -71,6 +71,9 @@ _conviqt.conviqt_beam_mmax.argtypes = [ct.c_void_p]
 _conviqt.conviqt_beam_normalize.restype = ct.c_double
 _conviqt.conviqt_beam_normalize.argtypes = [ct.c_void_p]
 
+_conviqt.conviqt_beam_normalized.restype = ct.c_int
+_conviqt.conviqt_beam_normalized.argtypes = [ct.c_void_p]
+
 
 class Beam(object):
     """
@@ -104,6 +107,13 @@ class Beam(object):
         if scale <= 0:
             raise RuntimeError("Failed to normalize beam. scale = {}".format(scale))
         return scale
+
+    def normalized(self):
+        result = _conviqt.conviqt_beam_normalized(self._beam)
+        if result < 0:
+            raise RuntimeError("Failed to query beam normalization status")
+        else:
+            return result != 0
 
 
 # Sky functions

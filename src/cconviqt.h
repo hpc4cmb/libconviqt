@@ -23,6 +23,7 @@ extern "C" {
 
   double conviqt_beam_normalize(void *ptr);
 
+  int conviqt_beam_normalized(void *ptr);
   // Sky
 
   void *conviqt_sky_new();
