@@ -158,7 +158,7 @@ MPI_Manager::MPI_Manager ( MPI_Comm comm ) : comm_(comm)
   if (!flag)
     {
     MPI_Init(0,0);
-    MPI_Errhandler_set( LS_COMM, MPI_ERRORS_ARE_FATAL);
+    MPI_Comm_set_errhandler( LS_COMM, MPI_ERRORS_ARE_FATAL);
     }
   MPI_Comm_size(LS_COMM, &num_ranks_);
   MPI_Comm_rank(LS_COMM, &rank_);
