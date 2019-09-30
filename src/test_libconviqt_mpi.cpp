@@ -9,6 +9,7 @@
 #include <iomanip>
 #include <exception>
 #include <sstream>
+#include <stdexcept>
 
 #include "conviqt.hpp"
 

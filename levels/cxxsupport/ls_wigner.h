@@ -33,6 +33,7 @@
 #define LEVELS_WIGNER_H
 
 #include <cmath>
+#include <stdexcept>
 #include "ls_arr.h"
 
 #include "ls_sse_utils_cxx.h"

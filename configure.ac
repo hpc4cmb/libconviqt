@@ -4,7 +4,7 @@ dnl
 dnl +------------------------
 dnl | Initialize package info
 dnl +------------------------
-AC_INIT([libconviqt], [1.2.0], [https://github.com/hpc4cmb/libconviqt/issues])
+AC_INIT([libconviqt], [1.2.1], [https://github.com/hpc4cmb/libconviqt/issues])
 AC_CONFIG_SRCDIR([Makefile.am])
 AM_INIT_AUTOMAKE([foreign])
 AC_CONFIG_HEADERS(config.h)
