@@ -254,8 +254,7 @@ void MPI_Manager::allreduceRawVoid (const void *in, void *out, NDT type,
   tsize num, redOp op) const
   {
   assert_unequal(in,out);
-  MPI_Allreduce (const_cast<void *>(in),out,num,ndt2mpi(type),op2mop(op),
-    MPI_COMM_WORLD);
+  MPI_Allreduce (const_cast<void *>(in),out,num,ndt2mpi(type),op2mop(op),LS_COMM);
   }
 void MPI_Manager::reduceRawVoid (const void *in, void *out, NDT type, tsize num,
   redOp op, int root) const
