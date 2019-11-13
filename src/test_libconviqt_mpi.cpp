@@ -25,7 +25,7 @@ int main( int argc, char **argv ) {
   int flag;
   MPI_Initialized( &flag );
   if ( flag ) throw std::runtime_error( "ERROR: MPI was already initialized" );
-  
+
   std::cout << "Initializing MPI" << std::endl;
 
   if ( MPI_Init( &argc, &argv ) ) throw std::runtime_error( "ERROR: Failed to initialize MPI" );
@@ -102,15 +102,17 @@ int main( int argc, char **argv ) {
     pnt_world[row*5+3] = 0; // TOD
     pnt_world[row*5+4] = row+first_sample; // time
   }
-    
+
+  int verbosity=1;
+
   std::cout << rank << " : Convolving self" << std::endl;
-  convolver cnv_self( &s, &b, &d, pol, lmax, beammmax, order, comm_self );
+  convolver cnv_self( &s, &b, &d, pol, lmax, beammmax, order, verbosity, comm_self );
   if (rank == 0) cnv_self.convolve( pnt_self );
 
   MPI_Barrier( comm_world );
 
   std::cout << rank << " : Convolving world" << std::endl;
-  convolver cnv_world( &s, &b, &d, pol, lmax, beammmax, order, comm_world );
+  convolver cnv_world( &s, &b, &d, pol, lmax, beammmax, order, verbosity, comm_world );
   cnv_world.convolve( pnt_world );
 
   std::vector<int> counts(ntasks);
@@ -146,9 +148,8 @@ int main( int argc, char **argv ) {
     }
 
   }
-    
+
   if ( MPI_Finalize() ) throw std::runtime_error( "ERROR: Failed to finalize MPI" );
 
   return 0;
 }
-
