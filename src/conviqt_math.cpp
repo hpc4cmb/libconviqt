@@ -71,7 +71,7 @@ double beam::normalize() {
     double scale = 0;
     if (blmT_.Lmax() >= 0) {
         double b00 = blmT_(0, 0).re;
-        double current_norm = 2 * b00 / sqrt(1 / pi);
+        double current_norm = 2 * sqrt(pi) * b00;
         scale = 1.0 / current_norm;
         if (verbosity > 1) {
             std::cerr << "Normalizing beam from " << current_norm << " to 1.0 with "
