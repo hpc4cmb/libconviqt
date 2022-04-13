@@ -76,6 +76,33 @@ extern "C" {
         }
     }
 
+    void * conviqt_beam_Tdata(void *ptr) {
+        try {
+            conviqt::beam *ref = reinterpret_cast< conviqt::beam * >(ptr);
+	    return (void*) &(ref->blmT().Alms()[0]);
+        } catch (...) {
+            return NULL;
+        }
+    }
+
+    void * conviqt_beam_Gdata(void *ptr) {
+        try {
+            conviqt::beam *ref = reinterpret_cast< conviqt::beam * >(ptr);
+	    return (void*) &(ref->blmG().Alms()[0]);
+        } catch (...) {
+            return NULL;
+        }
+    }
+
+    void * conviqt_beam_Cdata(void *ptr) {
+        try {
+            conviqt::beam *ref = reinterpret_cast< conviqt::beam * >(ptr);
+	    return (void*) &(ref->blmC().Alms()[0]);
+        } catch (...) {
+            return NULL;
+        }
+    }
+
     void *conviqt_sky_new() { return new(std::nothrow) conviqt::sky; }
 
     int conviqt_sky_del(void *ptr) {
@@ -130,6 +157,33 @@ extern "C" {
             return -1;
         }
         return 0;
+    }
+
+    void * conviqt_sky_Tdata(void *ptr) {
+        try {
+            conviqt::sky *ref = reinterpret_cast< conviqt::sky * >(ptr);
+	    return (void*) &(ref->slmT().Alms()[0]);
+        } catch (...) {
+            return NULL;
+        }
+    }
+
+    void * conviqt_sky_Gdata(void *ptr) {
+        try {
+            conviqt::sky *ref = reinterpret_cast< conviqt::sky * >(ptr);
+	    return (void*) &(ref->slmG().Alms()[0]);
+        } catch (...) {
+            return NULL;
+        }
+    }
+
+    void * conviqt_sky_Cdata(void *ptr) {
+        try {
+            conviqt::sky *ref = reinterpret_cast< conviqt::sky * >(ptr);
+	    return (void*) &(ref->slmC().Alms()[0]);
+        } catch (...) {
+            return NULL;
+        }
     }
 
     void *conviqt_detector_new() { return new(std::nothrow) conviqt::detector; }

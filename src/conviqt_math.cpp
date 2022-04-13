@@ -62,7 +62,6 @@ beam::beam(long beamlmax, long beammmax, bool pol,
     read(beamlmax, beammmax, pol, infile_beam, comm);
 }
 
-
 double beam::normalize() {
     /*
       Scale the intensity beam expansion to integrate to unity over the sphere

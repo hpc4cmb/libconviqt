@@ -24,6 +24,11 @@ extern "C" {
   double conviqt_beam_normalize(void *ptr);
 
   int conviqt_beam_normalized(void *ptr);
+
+  void * conviqt_beam_Tdata(void *ptr);
+  void * conviqt_beam_Gdata(void *ptr);
+  void * conviqt_beam_Cdata(void *ptr);
+
   // Sky
 
   void *conviqt_sky_new();
@@ -38,6 +43,10 @@ extern "C" {
   int conviqt_sky_remove_monopole(void *ptr);
 
   int conviqt_sky_remove_dipole(void *ptr);
+
+  void * conviqt_sky_Tdata(void *ptr);
+  void * conviqt_sky_Gdata(void *ptr);
+  void * conviqt_sky_Cdata(void *ptr);
 
   // Detector
 

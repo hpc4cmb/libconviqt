@@ -75,6 +75,9 @@ if available:
     _conviqt.conviqt_beam_normalized.restype = ct.c_int
     _conviqt.conviqt_beam_normalized.argtypes = [ct.c_void_p]
 
+    _conviqt.conviqt_beam_Tdata.restype = ct.c_void_p
+    _conviqt.conviqt_beam_Tdata.argtypes = [ct.c_void_p]
+
     class Beam(object):
         """
         Conviqt beam expansion object
@@ -82,6 +85,7 @@ if available:
 
         def __init__(self, lmax, mmax, pol, beamfile, comm):
             self._beam = _conviqt.conviqt_beam_new()
+            self._pol = pol
             err = _conviqt.conviqt_beam_read(
                 self._beam, lmax, mmax, pol, beamfile.encode(), encode_comm(comm)
             )
@@ -117,6 +121,29 @@ if available:
             else:
                 return result != 0
 
+        def num_alms(self):
+            lmax = self.lmax()
+            mmax = self.mmax()
+            return ((mmax + 1) * (mmax + 2)) // 2 + (mmax + 1) * (lmax - mmax)
+
+        def data(self):
+            """ Return a list of NDArrays with copies of the b_lm """
+            nelem = self.num_alms() * 2
+            arr = ct.cast(
+                _conviqt.conviqt_beam_Tdata(self._beam), ct.POINTER(ct.c_float)
+            )
+            result = [np.array(arr[0:nelem:2]) + 1j * np.array(arr[1:nelem:2])]
+            if self._pol:
+                arr = ct.cast(
+                    _conviqt.conviqt_beam_Gdata(self._beam), ct.POINTER(ct.c_float)
+                )
+                result.append(np.array(arr[0:nelem:2]) + 1j * np.array(arr[1:nelem:2]))
+                arr = ct.cast(
+                    _conviqt.conviqt_beam_Cdata(self._beam), ct.POINTER(ct.c_float)
+                )
+                result.append(np.array(arr[0:nelem:2]) + 1j * np.array(arr[1:nelem:2]))
+            return result
+
     # Sky functions
 
     _conviqt.conviqt_sky_new.restype = ct.c_void_p
@@ -151,6 +178,7 @@ if available:
 
         def __init__(self, lmax, pol, skyfile, fwhm, comm):
             self._sky = _conviqt.conviqt_sky_new()
+            self._pol = pol
             err = _conviqt.conviqt_sky_read(
                 self._sky, lmax, pol, skyfile.encode(), fwhm, encode_comm(comm)
             )
@@ -173,6 +201,29 @@ if available:
 
         def remove_dipole(self):
             err = _conviqt.conviqt_sky_remove_dipole(self._sky)
+
+        def num_alms(self):
+            lmax = self.lmax()
+            mmax = lmax
+            return ((mmax + 1) * (mmax + 2)) // 2 + (mmax + 1) * (lmax - mmax)
+
+        def data(self):
+            """ Return a list of NDArrays with copies of the s_lm """
+            nelem = self.num_alms() * 2
+            arr = ct.cast(
+                _conviqt.conviqt_sky_Tdata(self._sky), ct.POINTER(ct.c_float)
+            )
+            result = [np.array(arr[0:nelem:2]) + 1j * np.array(arr[1:nelem:2])]
+            if self._pol:
+                arr = ct.cast(
+                    _conviqt.conviqt_sky_Gdata(self._sky), ct.POINTER(ct.c_float)
+                )
+                result.append(np.array(arr[0:nelem:2]) + 1j * np.array(arr[1:nelem:2]))
+                arr = ct.cast(
+                    _conviqt.conviqt_sky_Cdata(self._sky), ct.POINTER(ct.c_float)
+                )
+                result.append(np.array(arr[0:nelem:2]) + 1j * np.array(arr[1:nelem:2]))
+            return result
 
     # Detector functions
 

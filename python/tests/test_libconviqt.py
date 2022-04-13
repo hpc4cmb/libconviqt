@@ -45,6 +45,7 @@ class ConviqtTest(TestCase):
 
     beam = conviqt.Beam(beamlmax, beammmax, pol, beamfile, comm)
     beam_auto = conviqt.Beam(-1, -1, pol, beamfile, comm)
+    blm = beam.data()
 
     beam_lmax = beam.lmax()
     beam_mmax = beam.mmax()
@@ -60,6 +61,7 @@ class ConviqtTest(TestCase):
     sky_auto = conviqt.Sky(-1, pol, skyfile, fwhm, comm)
     sky_auto.remove_monopole()
     sky_auto.remove_dipole()
+    slm = sky.data()
 
     sky_lmax = sky.lmax()
     sky_auto_lmax = sky_auto.lmax()
