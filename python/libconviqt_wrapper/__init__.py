@@ -78,6 +78,12 @@ if available:
     _conviqt.conviqt_beam_Tdata.restype = ct.c_void_p
     _conviqt.conviqt_beam_Tdata.argtypes = [ct.c_void_p]
 
+    _conviqt.conviqt_beam_Gdata.restype = ct.c_void_p
+    _conviqt.conviqt_beam_Gdata.argtypes = [ct.c_void_p]
+
+    _conviqt.conviqt_beam_Cdata.restype = ct.c_void_p
+    _conviqt.conviqt_beam_Cdata.argtypes = [ct.c_void_p]
+
     class Beam(object):
         """
         Conviqt beam expansion object
@@ -126,8 +132,8 @@ if available:
             mmax = self.mmax()
             return ((mmax + 1) * (mmax + 2)) // 2 + (mmax + 1) * (lmax - mmax)
 
-        def data(self):
-            """ Return a list of NDArrays with copies of the b_lm """
+        def get_data(self):
+            """Return a list of NDArrays with copies of the b_lm"""
             nelem = self.num_alms() * 2
             arr = ct.cast(
                 _conviqt.conviqt_beam_Tdata(self._beam), ct.POINTER(ct.c_float)
@@ -143,6 +149,36 @@ if available:
                 )
                 result.append(np.array(arr[0:nelem:2]) + 1j * np.array(arr[1:nelem:2]))
             return result
+
+        def set_data(self, blm):
+            """Overwrite the internal data vectors with the provided b_lm"""
+            nelem = self.num_alms()
+            nelem_in = blm[0].size
+            if nelem_in != nelem:
+                raise RuntimeError(f"Cannot set {nelem} b_lm with {nelem_in} values")
+            arr = ct.cast(
+                _conviqt.conviqt_beam_Tdata(self._beam), ct.POINTER(ct.c_float)
+            )
+            nelem *= 2  # Count real and imaginary parts separately
+            ReplaceType = ct.c_float * (nelem)
+            replace = ReplaceType()
+            replace[0:nelem:2] = np.real(blm[0])
+            replace[1:nelem:2] = np.imag(blm[0])
+            ct.memmove(arr, replace, nelem * ct.sizeof(ct.c_float))
+            if self._pol:
+                arr = ct.cast(
+                    _conviqt.conviqt_beam_Gdata(self._beam), ct.POINTER(ct.c_float)
+                )
+                replace[0:nelem:2] = np.real(blm[1])
+                replace[1:nelem:2] = np.imag(blm[1])
+                ct.memmove(arr, replace, nelem * ct.sizeof(ct.c_float))
+                arr = ct.cast(
+                    _conviqt.conviqt_beam_Cdata(self._beam), ct.POINTER(ct.c_float)
+                )
+                replace[0:nelem:2] = np.real(blm[2])
+                replace[1:nelem:2] = np.imag(blm[2])
+                ct.memmove(arr, replace, nelem * ct.sizeof(ct.c_float))
+            return
 
     # Sky functions
 
@@ -170,6 +206,15 @@ if available:
 
     _conviqt.conviqt_sky_remove_dipole.restype = ct.c_int
     _conviqt.conviqt_sky_remove_dipole.argtypes = [ct.c_void_p]
+
+    _conviqt.conviqt_sky_Tdata.restype = ct.c_void_p
+    _conviqt.conviqt_sky_Tdata.argtypes = [ct.c_void_p]
+
+    _conviqt.conviqt_sky_Gdata.restype = ct.c_void_p
+    _conviqt.conviqt_sky_Gdata.argtypes = [ct.c_void_p]
+
+    _conviqt.conviqt_sky_Cdata.restype = ct.c_void_p
+    _conviqt.conviqt_sky_Cdata.argtypes = [ct.c_void_p]
 
     class Sky(object):
         """
@@ -207,12 +252,10 @@ if available:
             mmax = lmax
             return ((mmax + 1) * (mmax + 2)) // 2 + (mmax + 1) * (lmax - mmax)
 
-        def data(self):
-            """ Return a list of NDArrays with copies of the s_lm """
+        def get_data(self):
+            """Return a list of NDArrays with copies of the s_lm"""
             nelem = self.num_alms() * 2
-            arr = ct.cast(
-                _conviqt.conviqt_sky_Tdata(self._sky), ct.POINTER(ct.c_float)
-            )
+            arr = ct.cast(_conviqt.conviqt_sky_Tdata(self._sky), ct.POINTER(ct.c_float))
             result = [np.array(arr[0:nelem:2]) + 1j * np.array(arr[1:nelem:2])]
             if self._pol:
                 arr = ct.cast(
@@ -224,6 +267,34 @@ if available:
                 )
                 result.append(np.array(arr[0:nelem:2]) + 1j * np.array(arr[1:nelem:2]))
             return result
+
+        def set_data(self, slm):
+            """Overwrite the internal data vectors with the provided s_lm"""
+            nelem = self.num_alms()
+            nelem_in = slm[0].size
+            if nelem_in != nelem:
+                raise RuntimeError(f"Cannot set {nelem} s_lm with {nelem_in} values")
+            arr = ct.cast(_conviqt.conviqt_sky_Tdata(self._sky), ct.POINTER(ct.c_float))
+            nelem *= 2  # Count real and imaginary parts separately
+            ReplaceType = ct.c_float * (nelem)
+            replace = ReplaceType()
+            replace[0:nelem:2] = np.real(slm[0])
+            replace[1:nelem:2] = np.imag(slm[0])
+            ct.memmove(arr, replace, nelem * ct.sizeof(ct.c_float))
+            if self._pol:
+                arr = ct.cast(
+                    _conviqt.conviqt_sky_Gdata(self._sky), ct.POINTER(ct.c_float)
+                )
+                replace[0:nelem:2] = np.real(slm[1])
+                replace[1:nelem:2] = np.imag(slm[1])
+                ct.memmove(arr, replace, nelem * ct.sizeof(ct.c_float))
+                arr = ct.cast(
+                    _conviqt.conviqt_sky_Cdata(self._sky), ct.POINTER(ct.c_float)
+                )
+                replace[0:nelem:2] = np.real(slm[2])
+                replace[1:nelem:2] = np.imag(slm[2])
+                ct.memmove(arr, replace, nelem * ct.sizeof(ct.c_float))
+            return
 
     # Detector functions
 

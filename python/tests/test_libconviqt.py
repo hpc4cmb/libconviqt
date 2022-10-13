@@ -1,4 +1,4 @@
-# Copyright (c) 2019 by the parties listed in the AUTHORS
+# Copyright (c) 2019-2022 by the parties listed in the AUTHORS
 # file.  All rights reserved.  Use of this source code is governed
 # by a BSD-style license that can be found in the LICENSE file.
 
@@ -23,7 +23,7 @@ class ConviqtTest(TestCase):
     ntask = comm.Get_size()
 
     if itask == 0:
-        print("Running with ", ntask, " MPI tasks")
+        print(f"Running with {ntask} MPI tasks")
 
     verbosity = 3
 
@@ -45,35 +45,36 @@ class ConviqtTest(TestCase):
 
     beam = conviqt.Beam(beamlmax, beammmax, pol, beamfile, comm)
     beam_auto = conviqt.Beam(-1, -1, pol, beamfile, comm)
-    blm = beam.data()
+    blm = beam.get_data()
+    beam.set_data(blm)
 
     beam_lmax = beam.lmax()
     beam_mmax = beam.mmax()
     beam_auto_lmax = beam_auto.lmax()
     beam_auto_mmax = beam_auto.mmax()
     print(
-        "Read beam. lmax = {}, lmax_auto = {}, mmax = {}, mmax_auto = {}".format(
-            beam_lmax, beam_auto_lmax, beam_mmax, beam_auto_mmax
-        )
+        f"Read beam. lmax = {beam_lmax}, lmax_auto = {beam_auto_lmax}, "
+        f"mmax = {beam_mmax}, mmax_auto = {beam_auto_mmax}"
     )
 
     sky = conviqt.Sky(lmax, pol, skyfile, fwhm, comm)
     sky_auto = conviqt.Sky(-1, pol, skyfile, fwhm, comm)
     sky_auto.remove_monopole()
     sky_auto.remove_dipole()
-    slm = sky.data()
+    slm = sky.get_data()
+    sky.set_data(slm)
 
     sky_lmax = sky.lmax()
     sky_auto_lmax = sky_auto.lmax()
-    print("Read sky. lmax = {}, lmax_auto = {}".format(sky_lmax, sky_auto_lmax))
+    print(f"Read sky. lmax = {sky_lmax}, lmax_auto = {sky_auto_lmax}")
 
     detector = conviqt.Detector(det_id)
 
-    print("detector name = ", detector.get_id())
+    print(f"detector name {detector.get_id()}")
     epsilon = 1.32495160e-04
     detector.set_epsilon(epsilon)
     eps = detector.get_epsilon()
-    print("epsilon = ", eps)
+    print(f"epsilon = {eps}")
 
     print("Allocating pointing array")
 
@@ -98,7 +99,7 @@ class ConviqtTest(TestCase):
                     row += 1
 
     for i in range(10):
-        print("ppnt[", i, "] = ", ppnt[i])
+        print(f"ppnt[{i}] = {ppnt[i]}]")
 
     print("Creating convolver")
 
