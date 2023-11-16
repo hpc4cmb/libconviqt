@@ -389,8 +389,8 @@ template<> inline V4sf vcast (const V4si &a)
 template<> inline V2df vcast (const V4si &a)
   { return V2df (_mm_castsi128_pd(a.v)); }
 
-#endif
-
 } // namespace levels
+
+#endif
 
 #endif
