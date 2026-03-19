@@ -22,28 +22,6 @@ def get_version():
 
 current_version = get_version()
 
-
-# run unit tests
-
-
-class PTestCommand(TestCommand):
-    def __init__(self, *args, **kwargs):
-        super(PTestCommand, self).__init__(*args, **kwargs)
-
-    def initialize_options(self):
-        TestCommand.initialize_options(self)
-
-    def finalize_options(self):
-        TestCommand.finalize_options(self)
-        self.test_suite = True
-
-    def run(self):
-        loader = unittest.TestLoader()
-        runner = unittest.TextTestRunner(verbosity=2)
-        suite = loader.discover("tests", pattern="test_*.py", top_level_dir=".")
-        runner.run(suite)
-
-
 setup(
     name="libconviqt_wrapper",
     provides="libconviqt_wrapper",
@@ -54,6 +32,5 @@ setup(
     url="https://github.com/hpc4cmb/libconviqt",
     packages=["libconviqt_wrapper"],
     license="BSD",
-    requires=["Python (>3.4.0)"],
-    cmdclass={"test": PTestCommand},
+    requires=["Python (>3.9.0)"],
 )
