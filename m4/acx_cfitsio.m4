@@ -71,7 +71,7 @@ AC_ARG_WITH(cfitsio, [AC_HELP_STRING([--with-cfitsio=<PATH>], [use CFITSIO insta
 
 if test x"$with_cfitsio" != x; then
    if test x"$with_cfitsio" != xno; then
-      CFITSIO_CPPFLAGS="-I$with_cfitsio/include"
+      CFITSIO_CPPFLAGS="-I$with_cfitsio/include -I$with_cfitsio/include/cfitsio"
       CFITSIO="-L$with_cfitsio/lib -lcfitsio"
    else
       acx_cfitsio_ok=disable
